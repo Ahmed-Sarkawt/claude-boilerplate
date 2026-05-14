@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # claude-boilerplate setup script
-# Interactive — asks questions and applies changes before your first session.
 set -euo pipefail
 
 RESET='\033[0m'
@@ -9,6 +8,7 @@ CYAN='\033[36m'
 GREEN='\033[32m'
 YELLOW='\033[33m'
 RED='\033[31m'
+DIM='\033[2m'
 
 ask() {
   local prompt="$1" default="${2:-}"
@@ -30,12 +30,11 @@ section() {
   printf '%s\n' "$(echo "$1" | sed 's/./-/g')"
 }
 
-# Safe string replacement — requires Python3. No fallback: the awk alternative
-# has the same regex injection problem we're trying to avoid.
+# Safe string replacement — requires Python3.
 safe_replace_in_file() {
   local file="$1" search="$2" replace="$3"
   if ! command -v python3 >/dev/null 2>&1; then
-    echo -e "${RED}✗ python3 not found — required for safe CLAUDE.md updates.${RESET}" >&2
+    echo -e "${RED}✗ python3 not found — required for safe file updates.${RESET}" >&2
     echo -e "  Install: brew install python3 (macOS) | apt install python3 (Ubuntu)" >&2
     echo -e "  Skipping replacement of: ${search}" >&2
     return 1
@@ -47,20 +46,35 @@ content = open(file).read()
 content = content.replace(search, replace, 1)
 open(file, 'w').write(content)
 PYEOF
-  fi
 }
 
 echo -e "${BOLD}claude-boilerplate setup${RESET}"
-echo "Customizes your Claude Code config in 2 minutes."
 echo ""
 
-# ── Dependency checks ─────────────────────────────────────────────────────────
+# ── Mode selection ─────────────────────────────────────────────────────────────
+echo -e "${BOLD}How do you want to set up?${RESET}"
+echo -e "  ${GREEN}[1]${RESET} Auto      — sensible defaults, two questions only"
+echo -e "  ${DIM}[2]${RESET} Basic     — recommended, 5 questions ${DIM}(default)${RESET}"
+echo -e "  ${DIM}[3]${RESET} Advanced  — all options: branches, hooks, rules, and more"
+echo ""
+read -rp "$(echo -e "${CYAN}Mode${RESET} [2]: ")" MODE_CHOICE
+MODE_CHOICE="${MODE_CHOICE:-2}"
+
+case "$MODE_CHOICE" in
+  1) SETUP_MODE="auto" ;;
+  3) SETUP_MODE="advanced" ;;
+  *) SETUP_MODE="basic" ;;
+esac
+
+echo -e "Running ${BOLD}${SETUP_MODE}${RESET} setup.\n"
+
+# ── Dependency checks ──────────────────────────────────────────────────────────
 section "Checking dependencies"
 
 MISSING_DEPS=false
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo -e "${RED}✗ jq not found${RESET} — required for all hooks. Without it, safety guards and context injection are disabled."
+  echo -e "${RED}✗ jq not found${RESET} — required for all hooks. Without it, safety guards and context injection silently disable."
   echo "  Install: brew install jq (macOS) | apt install jq (Ubuntu) | https://jqlang.org"
   MISSING_DEPS=true
 else
@@ -88,40 +102,64 @@ if [[ "$MISSING_DEPS" == true ]]; then
   echo "Setup will still write config files — hooks will degrade gracefully until fixed."
 fi
 
-# ── 1. Project basics ─────────────────────────────────────────────────────────
+# ── Defaults (all modes start here) ───────────────────────────────────────────
+FRONTEND_DIR="src"
+BACKEND_DIR="server"
+TEST_RUNNER="vitest"
+AGENT_TEAMS=false
+EXTRA_RULES=""
+PUSH_STRATEGY="branch"   # branch | main
+SUCCESS_METRIC=""
+
+# ── 1. Project basics (every mode) ────────────────────────────────────────────
 section "1. Project basics"
 
 PROJECT_NAME=$(ask "Project name" "$(basename "$PWD")")
 PROJECT_DESC=$(ask "One sentence: what does this project do and who is it for?")
-SUCCESS_METRIC=$(ask "Primary success metric (e.g. 'time to first value < 5 min')")
 
-# ── 2. Source paths ───────────────────────────────────────────────────────────
-section "2. Source paths"
+# ── 2. Basic mode questions ────────────────────────────────────────────────────
+if [[ "$SETUP_MODE" == "basic" || "$SETUP_MODE" == "advanced" ]]; then
+  section "2. Source paths & tooling"
 
-FRONTEND_DIR=$(ask "Frontend source directory" "src")
-BACKEND_DIR=$(ask "Backend source directory (leave blank if none)" "server")
-TEST_RUNNER=$(ask "Test runner (vitest/jest)" "vitest")
+  FRONTEND_DIR=$(ask "Frontend source directory" "src")
+  BACKEND_DIR=$(ask "Backend source directory (leave blank if none)" "server")
+  TEST_RUNNER=$(ask "Test runner (vitest/jest)" "vitest")
+  SUCCESS_METRIC=$(ask "Primary success metric (e.g. 'time to first value < 5 min')")
 
-# ── 3. Multi-worktree / Agent Teams ──────────────────────────────────────────
-section "3. Multi-worktree coordination"
+  section "3. Multi-worktree coordination"
 
-echo "Agent Teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1) lets multiple Claude"
-echo "instances share a task list when running in parallel worktrees."
-AGENT_TEAMS=false
-if confirm "Enable experimental Agent Teams coordination?"; then
-  AGENT_TEAMS=true
+  echo "Agent Teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1) lets multiple Claude"
+  echo "instances share a task list when running in parallel worktrees."
+  if confirm "Enable experimental Agent Teams?"; then
+    AGENT_TEAMS=true
+  fi
 fi
 
-# ── 4. Project-specific rules ─────────────────────────────────────────────────
-section "4. Project-specific rules"
+# ── 3. Advanced mode questions ─────────────────────────────────────────────────
+if [[ "$SETUP_MODE" == "advanced" ]]; then
+  section "4. Git push strategy"
 
-EXTRA_RULES=$(ask "Any project-specific hard rules to add? (leave blank to skip)")
+  echo "Controls whether Claude can push directly to main."
+  echo ""
+  echo -e "  ${GREEN}[1]${RESET} Feature branches only  — Claude always pushes to a branch, never main ${DIM}(default, safer)${RESET}"
+  echo -e "  ${DIM}[2]${RESET} Allow push to main      — Claude can push directly to main"
+  echo ""
+  read -rp "$(echo -e "${CYAN}Strategy${RESET} [1]: ")" PUSH_CHOICE
+  if [[ "${PUSH_CHOICE:-1}" == "2" ]]; then
+    PUSH_STRATEGY="main"
+  fi
 
-# ── Apply changes ─────────────────────────────────────────────────────────────
+  section "5. Project-specific rules"
+
+  EXTRA_RULES=$(ask "Any project-specific hard rules to add? (leave blank to skip)")
+fi
+
+# ── Apply changes ──────────────────────────────────────────────────────────────
 section "Applying changes"
 
-# Update CLAUDE.md — use safe_replace_in_file (immune to sed injection)
-DESCRIPTION_LINE="${PROJECT_DESC} The primary success metric is: ${SUCCESS_METRIC}."
+# CLAUDE.md — project description
+DESCRIPTION_LINE="${PROJECT_DESC}"
+[[ -n "$SUCCESS_METRIC" ]] && DESCRIPTION_LINE="${DESCRIPTION_LINE} The primary success metric is: ${SUCCESS_METRIC}."
 safe_replace_in_file CLAUDE.md \
   "[FILL IN: one paragraph describing the product, the persona you are building for, and the primary success metric.]" \
   "$DESCRIPTION_LINE"
@@ -132,7 +170,7 @@ if [[ -n "$EXTRA_RULES" ]]; then
   echo -e "${GREEN}✓${RESET} Added project-specific rule to CLAUDE.md"
 fi
 
-# Update frontend path (use safe_replace_in_file for all substitutions)
+# Frontend path
 if [[ "$FRONTEND_DIR" != "src" ]]; then
   safe_replace_in_file .claude/rules/frontend.md \
     '"src/**/*.tsx", "src/**/*.jsx"' \
@@ -140,7 +178,7 @@ if [[ "$FRONTEND_DIR" != "src" ]]; then
   echo -e "${GREEN}✓${RESET} Updated frontend path to ${FRONTEND_DIR}/"
 fi
 
-# Update backend path
+# Backend path
 if [[ -n "$BACKEND_DIR" && "$BACKEND_DIR" != "server" ]]; then
   safe_replace_in_file .claude/rules/backend.md \
     '"server/**/*.ts"' \
@@ -148,7 +186,7 @@ if [[ -n "$BACKEND_DIR" && "$BACKEND_DIR" != "server" ]]; then
   echo -e "${GREEN}✓${RESET} Updated backend path to ${BACKEND_DIR}/"
 fi
 
-# Update test runner — handle jest specially (no 'run' subcommand)
+# Test runner
 if [[ "$TEST_RUNNER" != "vitest" ]]; then
   if [[ "$TEST_RUNNER" == "jest" ]]; then
     safe_replace_in_file .claude/hooks/format-and-test.sh \
@@ -160,12 +198,21 @@ if [[ "$TEST_RUNNER" != "vitest" ]]; then
   echo -e "${GREEN}✓${RESET} Updated test runner to ${TEST_RUNNER}"
 fi
 
+# Push strategy
+if [[ "$PUSH_STRATEGY" == "main" ]]; then
+  grep -qxF "ALLOW_PUSH_MAIN=1" .env.claude 2>/dev/null \
+    || echo "ALLOW_PUSH_MAIN=1" >> .env.claude
+  grep -qxF ".env.claude" .gitignore 2>/dev/null || echo ".env.claude" >> .gitignore
+  echo -e "${GREEN}✓${RESET} Push to main allowed (.env.claude, added to .gitignore)"
+  echo -e "  ${YELLOW}Source before starting Claude: source .env.claude && claude${RESET}"
+else
+  echo -e "${GREEN}✓${RESET} Push strategy: feature branches only"
+fi
 
 # Agent Teams
 if [[ "$AGENT_TEAMS" == true ]]; then
   grep -qxF "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1" .env.claude 2>/dev/null \
     || echo "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1" >> .env.claude
-  # Add .env.claude to .gitignore so it's never committed
   grep -qxF ".env.claude" .gitignore 2>/dev/null || echo ".env.claude" >> .gitignore
   echo -e "${GREEN}✓${RESET} Agent Teams enabled (.env.claude created, added to .gitignore)"
   echo -e "  ${YELLOW}Source it before starting Claude: source .env.claude${RESET}"
@@ -221,15 +268,15 @@ if [[ ! -f "docs/research/index.md" ]]; then
   echo -e "${GREEN}✓${RESET} Created docs/research/index.md"
 fi
 
-# docs/flow/ is already in the boilerplate (index.md + main.md)
-
-# Summary
+# ── Summary ────────────────────────────────────────────────────────────────────
 echo ""
 section "Done"
 echo -e "Project:        ${BOLD}${PROJECT_NAME}${RESET}"
+echo -e "Setup mode:     ${SETUP_MODE}"
 echo -e "Frontend:       ${FRONTEND_DIR}/"
 [[ -n "$BACKEND_DIR" ]] && echo -e "Backend:        ${BACKEND_DIR}/"
 echo -e "Test runner:    ${TEST_RUNNER}"
+echo -e "Push strategy:  $([ "$PUSH_STRATEGY" = "main" ] && echo 'allow push to main' || echo 'feature branches only')"
 echo -e "Agent Teams:    $([ "$AGENT_TEAMS" = true ] && echo 'enabled' || echo 'disabled')"
 echo ""
 echo -e "Next steps:"

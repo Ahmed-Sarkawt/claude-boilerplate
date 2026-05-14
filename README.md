@@ -39,7 +39,13 @@ cd your-project
 bash setup.sh
 ```
 
-Asks 4 questions (project name, source dirs, test runner, Agent Teams). Takes under 2 minutes.
+Choose a setup mode when prompted:
+
+| Mode     | Questions | Use when                                                 |
+| -------- | --------- | -------------------------------------------------------- |
+| Auto     | 2         | Fastest — sensible defaults, just name + description     |
+| Basic    | 5         | Recommended — paths, test runner, Agent Teams            |
+| Advanced | 8         | Full control — branch strategy, push policy, extra rules |
 
 **3. Verify hooks work**
 
