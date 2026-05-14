@@ -18,6 +18,20 @@ A production-grade Claude Code configuration layer. Drop it into any project and
 
 ---
 
+## Which setup path should I use?
+
+| Situation                                            | Use                                                                               |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| At a terminal before opening Claude                  | `bash setup.sh` — interactive prompts                                             |
+| Inside a Claude Code or Cowork session               | `/init` — conversational wizard, applies changes directly                         |
+| CI pipeline or scripted automation                   | `bash setup.sh --mode advanced --name "..." --desc "..."` — non-interactive flags |
+| Want to see current config without changing anything | `bash setup.sh --print-config`                                                    |
+| Want to preview what setup would do                  | `bash setup.sh --dry-run [flags]`                                                 |
+
+Both paths read and write `.claude/setup-config.json`, so switching between them mid-project is safe — each tool picks up where the other left off.
+
+---
+
 ## Quick start (5 minutes)
 
 **1. Copy into your project**

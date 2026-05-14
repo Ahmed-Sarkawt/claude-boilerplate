@@ -4,7 +4,21 @@ description: Initialize or update project-specific Claude configuration — cove
 
 You are running the setup wizard for this claude-boilerplate project. Ask each question conversationally, wait for the answer, apply the change immediately, then move to the next step. Do not batch — apply each change as you go so the user can see progress.
 
-Before starting, read `CLAUDE.md` and `.claude/settings.json` to detect what's already configured. Show current values as defaults so this doubles as an update command.
+## Before starting
+
+1. Check for `.claude/setup-config.json`. If it exists, read it with:
+
+   ```bash
+   cat .claude/setup-config.json
+   ```
+
+   Use every value in it as the default for the corresponding question. Show the current value in brackets so the user can press enter to keep it: e.g. "Frontend directory? [src]"
+
+2. Read `CLAUDE.md` to detect if the `[FILL IN]` placeholder is still present.
+
+3. Read `.claude/settings.json` to detect which hooks are active.
+
+This makes `/init` work as both a first-time setup wizard and an update command — the user only needs to answer the questions where they want to change something.
 
 ---
 

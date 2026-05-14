@@ -4,7 +4,7 @@
 # Interactive (human at a terminal):
 #   bash setup.sh
 #
-# Non-interactive (Claude Code or CI — pass all answers as flags):
+# Non-interactive (Claude Code or CI):
 #   bash setup.sh --mode auto --name "My App" --desc "A task manager for devs"
 #   bash setup.sh --mode advanced --name "My App" --desc "..." \
 #     --frontend src --backend server --test-runner vitest \
@@ -12,6 +12,12 @@
 #     --format-on-save yes --session-logs yes \
 #     --commit-signing no --branch-prefix feat \
 #     --review-sensitivity strict --agent-teams no
+#
+# Inspect current config:
+#   bash setup.sh --print-config
+#
+# Preview changes without applying:
+#   bash setup.sh --dry-run [other flags]
 set -euo pipefail
 
 RESET='\033[0m'
@@ -21,6 +27,8 @@ GREEN='\033[32m'
 YELLOW='\033[33m'
 RED='\033[31m'
 DIM='\033[2m'
+
+CONFIG_FILE=".claude/setup-config.json"
 
 # ── Defaults ───────────────────────────────────────────────────────────────────
 SETUP_MODE=""
@@ -40,40 +48,49 @@ REVIEW_SENSITIVITY="strict"
 AGENT_TEAMS=false
 EXTRA_RULES=""
 NON_INTERACTIVE=false
+DRY_RUN=false
+PRINT_CONFIG=false
 
 # ── Flag parsing ───────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --mode)             SETUP_MODE="$2";           shift 2 ;;
-    --name)             PROJECT_NAME="$2";          shift 2 ;;
-    --desc)             PROJECT_DESC="$2";          shift 2 ;;
-    --metric)           SUCCESS_METRIC="$2";        shift 2 ;;
-    --frontend)         FRONTEND_DIR="$2";          shift 2 ;;
-    --backend)          BACKEND_DIR="$2";           shift 2 ;;
-    --test-runner)      TEST_RUNNER="$2";           shift 2 ;;
-    --push-strategy)    PUSH_STRATEGY="$2";         shift 2 ;;
-    --model-tier)       MODEL_TIER="$2";            shift 2 ;;
-    --format-on-save)   [[ "$2" == "no" ]] && FORMAT_ON_SAVE=false;   shift 2 ;;
-    --session-logs)     [[ "$2" == "no" ]] && SESSION_LOGS=false;      shift 2 ;;
-    --commit-signing)   [[ "$2" == "yes" ]] && COMMIT_SIGNING=true;    shift 2 ;;
-    --branch-prefix)    BRANCH_PREFIX="$2";         shift 2 ;;
-    --review-sensitivity) REVIEW_SENSITIVITY="$2";  shift 2 ;;
-    --agent-teams)      [[ "$2" == "yes" ]] && AGENT_TEAMS=true;       shift 2 ;;
-    --extra-rules)      EXTRA_RULES="$2";           shift 2 ;;
+    --mode)               SETUP_MODE="$2";                                    shift 2 ;;
+    --name)               PROJECT_NAME="$2";                                  shift 2 ;;
+    --desc)               PROJECT_DESC="$2";                                  shift 2 ;;
+    --metric)             SUCCESS_METRIC="$2";                                shift 2 ;;
+    --frontend)           FRONTEND_DIR="$2";                                  shift 2 ;;
+    --backend)            BACKEND_DIR="$2";                                   shift 2 ;;
+    --test-runner)        TEST_RUNNER="$2";                                   shift 2 ;;
+    --push-strategy)      PUSH_STRATEGY="$2";                                 shift 2 ;;
+    --model-tier)         MODEL_TIER="$2";                                    shift 2 ;;
+    --format-on-save)     [[ "$2" == "no" ]] && FORMAT_ON_SAVE=false;         shift 2 ;;
+    --session-logs)       [[ "$2" == "no" ]] && SESSION_LOGS=false;           shift 2 ;;
+    --commit-signing)     [[ "$2" == "yes" ]] && COMMIT_SIGNING=true;         shift 2 ;;
+    --branch-prefix)      BRANCH_PREFIX="$2";                                 shift 2 ;;
+    --review-sensitivity) REVIEW_SENSITIVITY="$2";                            shift 2 ;;
+    --agent-teams)        [[ "$2" == "yes" ]] && AGENT_TEAMS=true;            shift 2 ;;
+    --extra-rules)        EXTRA_RULES="$2";                                   shift 2 ;;
+    --dry-run)            DRY_RUN=true;                                       shift ;;
+    --print-config)       PRINT_CONFIG=true;                                  shift ;;
     *) echo "Unknown flag: $1" >&2; exit 1 ;;
   esac
 done
 
-# If any flag was provided, skip all interactive prompts
+# If any config flag was provided, skip interactive prompts
 [[ -n "$SETUP_MODE$PROJECT_NAME$PROJECT_DESC" ]] && NON_INTERACTIVE=true
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+ok()  { echo -e "${GREEN}✓${RESET} $1"; }
+dr()  { echo -e "  ${DIM}[dry-run] $1${RESET}"; }
+# Run an action or print it in dry-run mode
+act() {
+  local desc="$1"; shift
+  if [[ "$DRY_RUN" == true ]]; then dr "$desc"; else "$@" && ok "$desc"; fi
+}
+
 ask() {
   local prompt="$1" default="${2:-}"
-  if [[ "$NON_INTERACTIVE" == true ]]; then
-    echo "${default}"
-    return
-  fi
+  if [[ "$NON_INTERACTIVE" == true ]]; then echo "${default}"; return; fi
   if [[ -n "$default" ]]; then
     read -rp "$(echo -e "${CYAN}${prompt}${RESET} [${default}]: ")" answer
   else
@@ -83,10 +100,7 @@ ask() {
 }
 
 confirm() {
-  if [[ "$NON_INTERACTIVE" == true ]]; then
-    # In non-interactive mode, caller sets the variable directly via flags
-    return 1
-  fi
+  [[ "$NON_INTERACTIVE" == true ]] && return 1
   read -rp "$(echo -e "${CYAN}${1}${RESET} [y/N]: ")" answer
   [[ "${answer,,}" == "y" ]]
 }
@@ -96,13 +110,10 @@ section() {
   printf '%s\n' "$(echo "$1" | sed 's/./-/g')"
 }
 
-# Safe string replacement — requires Python3. No fallback: the awk alternative
-# has the same regex injection problem we're trying to avoid.
 safe_replace_in_file() {
   local file="$1" search="$2" replace="$3"
   if ! command -v python3 >/dev/null 2>&1; then
     echo -e "${RED}✗ python3 not found — required for safe file updates.${RESET}" >&2
-    echo -e "  Install: brew install python3 (macOS) | apt install python3 (Ubuntu)" >&2
     return 1
   fi
   python3 - "$file" "$search" "$replace" <<'PYEOF'
@@ -114,7 +125,6 @@ open(file, 'w').write(content)
 PYEOF
 }
 
-# In-place settings.json edit via jq (jq is a required dep — already checked).
 update_settings() {
   local filter="$1"
   local tmp
@@ -122,9 +132,60 @@ update_settings() {
   jq "$filter" .claude/settings.json > "$tmp" && mv "$tmp" .claude/settings.json
 }
 
+# ── --print-config early exit ─────────────────────────────────────────────────
+if [[ "$PRINT_CONFIG" == true ]]; then
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo -e "${YELLOW}No config file found at ${CONFIG_FILE}.${RESET}"
+    echo "Run 'bash setup.sh' first to generate it."
+    exit 0
+  fi
+  echo -e "${BOLD}Current configuration${RESET} (from ${CONFIG_FILE}):"
+  echo ""
+  jq -r '
+    "  --mode             " + .setup_mode,
+    "  --name             \"" + .project_name + "\"",
+    "  --desc             \"" + .project_desc + "\"",
+    "  --metric           \"" + (.success_metric // "") + "\"",
+    "  --frontend         " + .frontend_dir,
+    "  --backend          " + (.backend_dir // ""),
+    "  --test-runner      " + .test_runner,
+    "  --push-strategy    " + .push_strategy,
+    "  --model-tier       " + .model_tier,
+    "  --format-on-save   " + (if .format_on_save then "yes" else "no" end),
+    "  --session-logs     " + (if .session_logs then "yes" else "no" end),
+    "  --commit-signing   " + (if .commit_signing then "yes" else "no" end),
+    "  --branch-prefix    " + (.branch_prefix // ""),
+    "  --review-sensitivity " + .review_sensitivity,
+    "  --agent-teams      " + (if .agent_teams then "yes" else "no" end)
+  ' "$CONFIG_FILE"
+  echo ""
+  echo -e "${DIM}Setup date: $(jq -r '.setup_date' "$CONFIG_FILE")${RESET}"
+  exit 0
+fi
+
+# ── Read saved config for defaults ────────────────────────────────────────────
+if [[ -f "$CONFIG_FILE" ]] && command -v jq >/dev/null 2>&1; then
+  [[ -z "$PROJECT_NAME" ]]      && PROJECT_NAME=$(jq -r '.project_name // empty'      "$CONFIG_FILE")
+  [[ -z "$PROJECT_DESC" ]]      && PROJECT_DESC=$(jq -r '.project_desc // empty'      "$CONFIG_FILE")
+  [[ -z "$SUCCESS_METRIC" ]]    && SUCCESS_METRIC=$(jq -r '.success_metric // empty'  "$CONFIG_FILE")
+  FRONTEND_DIR=$(jq -r --arg d "$FRONTEND_DIR" '.frontend_dir // $d'                  "$CONFIG_FILE")
+  BACKEND_DIR=$(jq -r  --arg d "$BACKEND_DIR"  '.backend_dir // $d'                   "$CONFIG_FILE")
+  TEST_RUNNER=$(jq -r  --arg d "$TEST_RUNNER"  '.test_runner // $d'                   "$CONFIG_FILE")
+  PUSH_STRATEGY=$(jq -r --arg d "$PUSH_STRATEGY" '.push_strategy // $d'              "$CONFIG_FILE")
+  MODEL_TIER=$(jq -r   --arg d "$MODEL_TIER"   '.model_tier // $d'                    "$CONFIG_FILE")
+  FORMAT_ON_SAVE=$(jq -r '.format_on_save // true'                                    "$CONFIG_FILE")
+  SESSION_LOGS=$(jq -r '.session_logs // true'                                        "$CONFIG_FILE")
+  COMMIT_SIGNING=$(jq -r 'if .commit_signing then "true" else "false" end'            "$CONFIG_FILE")
+  BRANCH_PREFIX=$(jq -r '.branch_prefix // empty'                                     "$CONFIG_FILE")
+  REVIEW_SENSITIVITY=$(jq -r --arg d "$REVIEW_SENSITIVITY" '.review_sensitivity // $d' "$CONFIG_FILE")
+  AGENT_TEAMS=$(jq -r 'if .agent_teams then "true" else "false" end'                  "$CONFIG_FILE")
+fi
+
 # ── Header ─────────────────────────────────────────────────────────────────────
 echo -e "${BOLD}claude-boilerplate setup${RESET}"
 [[ "$NON_INTERACTIVE" == true ]] && echo -e "${DIM}Running in non-interactive mode.${RESET}"
+[[ "$DRY_RUN" == true ]]         && echo -e "${YELLOW}Dry-run mode — no files will be changed.${RESET}"
+[[ -f "$CONFIG_FILE" ]]          && echo -e "${DIM}Loaded defaults from ${CONFIG_FILE}${RESET}"
 echo ""
 
 # ── Mode selection (interactive only) ─────────────────────────────────────────
@@ -141,7 +202,6 @@ if [[ "$NON_INTERACTIVE" == false && -z "$SETUP_MODE" ]]; then
     *) SETUP_MODE="basic" ;;
   esac
 fi
-
 [[ -z "$SETUP_MODE" ]] && SETUP_MODE="basic"
 echo -e "Running ${BOLD}${SETUP_MODE}${RESET} setup.\n"
 
@@ -155,7 +215,7 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "  Install: brew install jq (macOS) | apt install jq (Ubuntu) | https://jqlang.org"
   MISSING_DEPS=true
 else
-  echo -e "${GREEN}✓${RESET} jq"
+  ok "jq"
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
@@ -163,20 +223,18 @@ if ! command -v python3 >/dev/null 2>&1; then
   echo "  Install: brew install python3 (macOS) | apt install python3 (Ubuntu)"
   MISSING_DEPS=true
 else
-  echo -e "${GREEN}✓${RESET} python3"
+  ok "python3"
 fi
 
 if ! command -v claude >/dev/null 2>&1; then
-  echo -e "${YELLOW}⚠  Claude Code CLI not found${RESET}"
-  echo "  Install from: https://claude.ai/code"
-  echo "  (Setup will complete — install Claude Code before running 'claude')"
+  echo -e "${YELLOW}⚠  Claude Code CLI not found${RESET} — install from https://claude.ai/code before running 'claude'"
 else
-  echo -e "${GREEN}✓${RESET} claude"
+  ok "claude"
 fi
 
 if [[ "$MISSING_DEPS" == true ]]; then
   echo -e "\n${RED}Install missing dependencies before using this boilerplate.${RESET}"
-  echo "Setup will still write config files — hooks will degrade gracefully until fixed."
+  echo "Setup will still write config files — hooks degrade gracefully until fixed."
 fi
 
 # ── 1. Project basics (every mode) ────────────────────────────────────────────
@@ -188,16 +246,13 @@ section "1. Project basics"
 # ── 2. Basic questions ────────────────────────────────────────────────────────
 if [[ "$SETUP_MODE" == "basic" || "$SETUP_MODE" == "advanced" ]]; then
   section "2. Source paths & tooling"
-
   FRONTEND_DIR=$(ask "Frontend source directory" "$FRONTEND_DIR")
   BACKEND_DIR=$(ask "Backend source directory (leave blank if none)" "$BACKEND_DIR")
   TEST_RUNNER=$(ask "Test runner (vitest/jest)" "$TEST_RUNNER")
   SUCCESS_METRIC=$(ask "Primary success metric (e.g. 'time to first value < 5 min')" "$SUCCESS_METRIC")
 
   section "3. Multi-worktree coordination"
-
-  echo "Agent Teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1) lets multiple Claude"
-  echo "instances share a task list when running in parallel worktrees."
+  echo "Agent Teams lets multiple Claude instances share a task list in parallel worktrees."
   if [[ "$NON_INTERACTIVE" == false ]] && confirm "Enable experimental Agent Teams?"; then
     AGENT_TEAMS=true
   fi
@@ -208,10 +263,8 @@ if [[ "$SETUP_MODE" == "advanced" ]]; then
 
   section "4. Git push strategy"
   if [[ "$NON_INTERACTIVE" == false ]]; then
-    echo "Controls whether Claude can push directly to main."
-    echo ""
-    echo -e "  ${GREEN}[1]${RESET} Feature branches only  — Claude always pushes to a branch, never main ${DIM}(default, safer)${RESET}"
-    echo -e "  ${DIM}[2]${RESET} Allow push to main      — Claude can push directly to main"
+    echo -e "  ${GREEN}[1]${RESET} Feature branches only ${DIM}(default, safer)${RESET}"
+    echo -e "  ${DIM}[2]${RESET} Allow push to main"
     echo ""
     read -rp "$(echo -e "${CYAN}Strategy${RESET} [1]: ")" PUSH_CHOICE
     [[ "${PUSH_CHOICE:-1}" == "2" ]] && PUSH_STRATEGY="main"
@@ -219,11 +272,9 @@ if [[ "$SETUP_MODE" == "advanced" ]]; then
 
   section "5. Default model tier"
   if [[ "$NON_INTERACTIVE" == false ]]; then
-    echo "Controls which Claude model powers each agent."
-    echo ""
-    echo -e "  ${DIM}[1]${RESET} Economy   — haiku for all agents (fastest, cheapest)"
-    echo -e "  ${GREEN}[2]${RESET} Balanced  — sonnet for primary, haiku for utility ${DIM}(default)${RESET}"
-    echo -e "  ${DIM}[3]${RESET} Powerful  — opus for primary, sonnet for utility"
+    echo -e "  ${DIM}[1]${RESET} Economy   — haiku for all agents"
+    echo -e "  ${GREEN}[2]${RESET} Balanced  — sonnet primary, haiku utility ${DIM}(default)${RESET}"
+    echo -e "  ${DIM}[3]${RESET} Powerful  — opus primary, sonnet utility"
     echo ""
     read -rp "$(echo -e "${CYAN}Tier${RESET} [2]: ")" MODEL_CHOICE
     case "${MODEL_CHOICE:-2}" in
@@ -235,42 +286,33 @@ if [[ "$SETUP_MODE" == "advanced" ]]; then
 
   section "6. Auto-format on save"
   if [[ "$NON_INTERACTIVE" == false ]]; then
-    echo "Runs Prettier + the file's sibling test automatically on every file save."
-    if ! confirm "Enable auto-format and test on save?"; then
-      FORMAT_ON_SAVE=false
-    fi
+    echo "Runs Prettier + the file's sibling test on every file save."
+    if ! confirm "Enable?"; then FORMAT_ON_SAVE=false; fi
   fi
 
   section "7. Session logging"
   if [[ "$NON_INTERACTIVE" == false ]]; then
-    echo "Writes every prompt and session summary to .claude/logs/. Used by /session-log."
-    if ! confirm "Enable session logging?"; then
-      SESSION_LOGS=false
-    fi
+    echo "Writes every prompt and summary to .claude/logs/. Used by /session-log."
+    if ! confirm "Enable?"; then SESSION_LOGS=false; fi
   fi
 
   section "8. Commit signing"
   if [[ "$NON_INTERACTIVE" == false ]]; then
-    echo "Requires GPG. Sets git config commit.gpgsign=true and adds a hard rule to CLAUDE.md."
-    if confirm "Enforce signed commits?"; then
-      COMMIT_SIGNING=true
-    fi
+    echo "Requires GPG. Sets git config commit.gpgsign=true and adds a CLAUDE.md rule."
+    if confirm "Enforce signed commits?"; then COMMIT_SIGNING=true; fi
   fi
 
   section "9. Branch naming convention"
   if [[ "$NON_INTERACTIVE" == false ]]; then
-    echo "Adds a hard rule to CLAUDE.md so Claude always names branches consistently."
     echo "Examples: feat, fix, claude, chore"
     BRANCH_PREFIX=$(ask "Branch prefix (leave blank to skip)")
   fi
 
   section "10. Review sensitivity"
   if [[ "$NON_INTERACTIVE" == false ]]; then
-    echo "Controls which findings the code-reviewer includes in its output."
-    echo ""
-    echo -e "  ${GREEN}[1]${RESET} Strict   — reports 🔴 Block, 🟡 Recommend, and 🟢 Note ${DIM}(default)${RESET}"
-    echo -e "  ${DIM}[2]${RESET} Normal   — reports 🔴 Block and 🟡 Recommend only"
-    echo -e "  ${DIM}[3]${RESET} Relaxed  — reports 🔴 Block only"
+    echo -e "  ${GREEN}[1]${RESET} Strict   — Block, Recommend, and Note ${DIM}(default)${RESET}"
+    echo -e "  ${DIM}[2]${RESET} Normal   — Block and Recommend only"
+    echo -e "  ${DIM}[3]${RESET} Relaxed  — Block only"
     echo ""
     read -rp "$(echo -e "${CYAN}Sensitivity${RESET} [1]: ")" REVIEW_CHOICE
     case "${REVIEW_CHOICE:-1}" in
@@ -287,160 +329,208 @@ if [[ "$SETUP_MODE" == "advanced" ]]; then
 fi
 
 # ── Apply changes ──────────────────────────────────────────────────────────────
-section "Applying changes"
+section "$([ "$DRY_RUN" = true ] && echo 'Changes preview (dry-run)' || echo 'Applying changes')"
 
 # CLAUDE.md — project description
 DESCRIPTION_LINE="${PROJECT_DESC}"
 [[ -n "$SUCCESS_METRIC" ]] && DESCRIPTION_LINE="${DESCRIPTION_LINE} The primary success metric is: ${SUCCESS_METRIC}."
-safe_replace_in_file CLAUDE.md \
-  "[FILL IN: one paragraph describing the product, the persona you are building for, and the primary success metric.]" \
-  "$DESCRIPTION_LINE"
-echo -e "${GREEN}✓${RESET} Updated CLAUDE.md"
+if [[ "$DRY_RUN" == true ]]; then
+  dr "Update CLAUDE.md description"
+else
+  safe_replace_in_file CLAUDE.md \
+    "[FILL IN: one paragraph describing the product, the persona you are building for, and the primary success metric.]" \
+    "$DESCRIPTION_LINE"
+  ok "Updated CLAUDE.md"
+fi
 
 # Frontend path
 if [[ "$FRONTEND_DIR" != "src" ]]; then
-  safe_replace_in_file .claude/rules/frontend.md \
-    '"src/**/*.tsx", "src/**/*.jsx"' \
-    "\"${FRONTEND_DIR}/**/*.tsx\", \"${FRONTEND_DIR}/**/*.jsx\""
-  echo -e "${GREEN}✓${RESET} Updated frontend path to ${FRONTEND_DIR}/"
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Update frontend path to ${FRONTEND_DIR}/"
+  else
+    safe_replace_in_file .claude/rules/frontend.md \
+      '"src/**/*.tsx", "src/**/*.jsx"' \
+      "\"${FRONTEND_DIR}/**/*.tsx\", \"${FRONTEND_DIR}/**/*.jsx\""
+    ok "Updated frontend path to ${FRONTEND_DIR}/"
+  fi
 fi
 
 # Backend path
 if [[ -n "$BACKEND_DIR" && "$BACKEND_DIR" != "server" ]]; then
-  safe_replace_in_file .claude/rules/backend.md \
-    '"server/**/*.ts"' \
-    "\"${BACKEND_DIR}/**/*.ts\""
-  echo -e "${GREEN}✓${RESET} Updated backend path to ${BACKEND_DIR}/"
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Update backend path to ${BACKEND_DIR}/"
+  else
+    safe_replace_in_file .claude/rules/backend.md '"server/**/*.ts"' "\"${BACKEND_DIR}/**/*.ts\""
+    ok "Updated backend path to ${BACKEND_DIR}/"
+  fi
 fi
 
 # Test runner
 if [[ "$TEST_RUNNER" != "vitest" ]]; then
-  if [[ "$TEST_RUNNER" == "jest" ]]; then
-    safe_replace_in_file .claude/hooks/format-and-test.sh \
-      "npx vitest run" "npx jest"
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Update test runner to ${TEST_RUNNER}"
   else
-    safe_replace_in_file .claude/hooks/format-and-test.sh \
-      "npx vitest run" "npx ${TEST_RUNNER} run"
+    if [[ "$TEST_RUNNER" == "jest" ]]; then
+      safe_replace_in_file .claude/hooks/format-and-test.sh "npx vitest run" "npx jest"
+    else
+      safe_replace_in_file .claude/hooks/format-and-test.sh "npx vitest run" "npx ${TEST_RUNNER} run"
+    fi
+    ok "Updated test runner to ${TEST_RUNNER}"
   fi
-  echo -e "${GREEN}✓${RESET} Updated test runner to ${TEST_RUNNER}"
 fi
 
 # Push strategy
 if [[ "$PUSH_STRATEGY" == "main" ]]; then
-  grep -qxF "ALLOW_PUSH_MAIN=1" .env.claude 2>/dev/null \
-    || echo "ALLOW_PUSH_MAIN=1" >> .env.claude
-  grep -qxF ".env.claude" .gitignore 2>/dev/null || echo ".env.claude" >> .gitignore
-  echo -e "${GREEN}✓${RESET} Push to main allowed (.env.claude, added to .gitignore)"
-  echo -e "  ${YELLOW}Source before starting Claude: source .env.claude && claude${RESET}"
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Allow push to main (ALLOW_PUSH_MAIN=1 → .env.claude)"
+  else
+    grep -qxF "ALLOW_PUSH_MAIN=1" .env.claude 2>/dev/null || echo "ALLOW_PUSH_MAIN=1" >> .env.claude
+    grep -qxF ".env.claude" .gitignore 2>/dev/null || echo ".env.claude" >> .gitignore
+    ok "Push to main allowed (.env.claude)"
+    echo -e "  ${YELLOW}Source before starting Claude: source .env.claude && claude${RESET}"
+  fi
 else
-  echo -e "${GREEN}✓${RESET} Push strategy: feature branches only"
+  [[ "$DRY_RUN" == true ]] && dr "Push strategy: feature branches only (no change)" \
+                             || ok "Push strategy: feature branches only"
 fi
 
 # Model tier
 if [[ "$MODEL_TIER" != "balanced" ]]; then
-  PRIMARY_AGENTS=(code-reviewer researcher test-writer ux-auditor)
-  UTILITY_AGENTS=(bug-fixer research-executor doc-updater)
-
-  if [[ "$MODEL_TIER" == "economy" ]]; then
-    for agent in "${PRIMARY_AGENTS[@]}"; do
-      safe_replace_in_file ".claude/agents/${agent}.md" "model: sonnet" "model: haiku"
-    done
-  elif [[ "$MODEL_TIER" == "powerful" ]]; then
-    for agent in "${PRIMARY_AGENTS[@]}"; do
-      safe_replace_in_file ".claude/agents/${agent}.md" "model: sonnet" "model: opus"
-    done
-    for agent in "${UTILITY_AGENTS[@]}"; do
-      safe_replace_in_file ".claude/agents/${agent}.md" "model: haiku" "model: sonnet"
-    done
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Set model tier: ${MODEL_TIER}"
+  else
+    PRIMARY_AGENTS=(code-reviewer researcher test-writer ux-auditor)
+    UTILITY_AGENTS=(bug-fixer research-executor doc-updater)
+    if [[ "$MODEL_TIER" == "economy" ]]; then
+      for a in "${PRIMARY_AGENTS[@]}"; do
+        safe_replace_in_file ".claude/agents/${a}.md" "model: sonnet" "model: haiku"
+      done
+    elif [[ "$MODEL_TIER" == "powerful" ]]; then
+      for a in "${PRIMARY_AGENTS[@]}"; do
+        safe_replace_in_file ".claude/agents/${a}.md" "model: sonnet" "model: opus"
+      done
+      for a in "${UTILITY_AGENTS[@]}"; do
+        safe_replace_in_file ".claude/agents/${a}.md" "model: haiku" "model: sonnet"
+      done
+    fi
+    ok "Model tier: ${MODEL_TIER}"
   fi
-  echo -e "${GREEN}✓${RESET} Model tier: ${MODEL_TIER}"
 fi
 
 # Auto-format on save
 if [[ "$FORMAT_ON_SAVE" == false ]]; then
-  update_settings \
-    '(.hooks.PostToolUse) |= map(select(any(.hooks[]; .command | contains("format-and-test")) | not))'
-  echo -e "${GREEN}✓${RESET} Auto-format on save disabled"
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Disable auto-format on save (remove format-and-test from settings.json)"
+  else
+    update_settings \
+      '(.hooks.PostToolUse) |= map(select(any(.hooks[]; .command | contains("format-and-test")) | not))'
+    ok "Auto-format on save disabled"
+  fi
 fi
 
 # Session logging
 if [[ "$SESSION_LOGS" == false ]]; then
-  update_settings 'del(.hooks.UserPromptSubmit) | del(.hooks.Stop)'
-  echo -e "${GREEN}✓${RESET} Session logging disabled"
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Disable session logging (remove UserPromptSubmit + Stop hooks)"
+  else
+    update_settings 'del(.hooks.UserPromptSubmit) | del(.hooks.Stop)'
+    ok "Session logging disabled"
+  fi
 fi
 
 # Commit signing
 if [[ "$COMMIT_SIGNING" == true ]]; then
-  if git rev-parse --git-dir >/dev/null 2>&1; then
-    git config commit.gpgsign true
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Enforce commit signing (git config commit.gpgsign true + CLAUDE.md rule)"
+  else
+    git rev-parse --git-dir >/dev/null 2>&1 && git config commit.gpgsign true
+    echo "8. **Sign all commits. Always use \`git commit -S\`. Never use \`--no-gpg-sign\`.**" >> CLAUDE.md
+    ok "Commit signing enforced"
+    echo -e "  ${YELLOW}Requires a GPG key: https://docs.github.com/authentication/managing-commit-signature-verification${RESET}"
   fi
-  echo "8. **Sign all commits. Always use \`git commit -S\`. Never use \`--no-gpg-sign\`.**" >> CLAUDE.md
-  echo -e "${GREEN}✓${RESET} Commit signing enforced (git config + CLAUDE.md rule)"
-  echo -e "  ${YELLOW}Requires a GPG key: https://docs.github.com/authentication/managing-commit-signature-verification${RESET}"
 fi
 
-# Branch naming convention
+# Branch naming
 if [[ -n "$BRANCH_PREFIX" ]]; then
-  echo "8. **Branch names must follow \`${BRANCH_PREFIX}/<short-description>\` (e.g. \`${BRANCH_PREFIX}/add-login\`). Never push directly to main unless ALLOW_PUSH_MAIN=1 is set.**" >> CLAUDE.md
-  echo -e "${GREEN}✓${RESET} Branch naming convention: ${BRANCH_PREFIX}/<description>"
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Add branch naming rule: ${BRANCH_PREFIX}/<description>"
+  else
+    echo "8. **Branch names must follow \`${BRANCH_PREFIX}/<short-description>\` (e.g. \`${BRANCH_PREFIX}/add-login\`). Never push directly to main unless ALLOW_PUSH_MAIN=1 is set.**" >> CLAUDE.md
+    ok "Branch naming convention: ${BRANCH_PREFIX}/<description>"
+  fi
 fi
 
-# Extra project-specific rules
+# Extra rules
 if [[ -n "$EXTRA_RULES" ]]; then
-  echo "8. **${EXTRA_RULES}**" >> CLAUDE.md
-  echo -e "${GREEN}✓${RESET} Added project-specific rule to CLAUDE.md"
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Add project rule: ${EXTRA_RULES}"
+  else
+    echo "8. **${EXTRA_RULES}**" >> CLAUDE.md
+    ok "Added project-specific rule"
+  fi
 fi
 
 # Review sensitivity
 if [[ "$REVIEW_SENSITIVITY" == "normal" ]]; then
-  cat >> .claude/agents/code-reviewer.md <<'EOF'
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Set review sensitivity: normal (Block + Recommend only)"
+  else
+    cat >> .claude/agents/code-reviewer.md <<'EOF'
 
 ## Review threshold
 
 Report **🔴 Block** and **🟡 Recommend** findings only. Do not include **🟢 Note** findings in your output.
 EOF
-  echo -e "${GREEN}✓${RESET} Review sensitivity: normal (Block + Recommend)"
+    ok "Review sensitivity: normal"
+  fi
 elif [[ "$REVIEW_SENSITIVITY" == "relaxed" ]]; then
-  cat >> .claude/agents/code-reviewer.md <<'EOF'
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Set review sensitivity: relaxed (Block only)"
+  else
+    cat >> .claude/agents/code-reviewer.md <<'EOF'
 
 ## Review threshold
 
 Report **🔴 Block** findings only. Do not include **🟡 Recommend** or **🟢 Note** findings in your output.
 EOF
-  echo -e "${GREEN}✓${RESET} Review sensitivity: relaxed (Block only)"
+    ok "Review sensitivity: relaxed"
+  fi
 fi
 
 # Agent Teams
 if [[ "$AGENT_TEAMS" == true ]]; then
-  grep -qxF "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1" .env.claude 2>/dev/null \
-    || echo "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1" >> .env.claude
-  grep -qxF ".env.claude" .gitignore 2>/dev/null || echo ".env.claude" >> .gitignore
-  echo -e "${GREEN}✓${RESET} Agent Teams enabled (.env.claude created, added to .gitignore)"
-  echo -e "  ${YELLOW}Source it before starting Claude: source .env.claude${RESET}"
+  if [[ "$DRY_RUN" == true ]]; then
+    dr "Enable Agent Teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 → .env.claude)"
+  else
+    grep -qxF "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1" .env.claude 2>/dev/null \
+      || echo "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1" >> .env.claude
+    grep -qxF ".env.claude" .gitignore 2>/dev/null || echo ".env.claude" >> .gitignore
+    ok "Agent Teams enabled"
+    echo -e "  ${YELLOW}Source before starting Claude: source .env.claude${RESET}"
+  fi
 fi
 
-# Make hooks executable
-chmod +x .claude/hooks/*.sh
-echo -e "${GREEN}✓${RESET} Made all hooks executable"
+# Hooks executable + git init + docs
+if [[ "$DRY_RUN" == false ]]; then
+  chmod +x .claude/hooks/*.sh
+  ok "Made all hooks executable"
 
-# Initialize git if needed
-if ! git rev-parse --git-dir >/dev/null 2>&1; then
-  git init -q
-  echo -e "${GREEN}✓${RESET} Initialized git repo"
-fi
+  if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    git init -q
+    ok "Initialized git repo"
+  fi
 
-# Create docs/ folder structure
-mkdir -p docs/decisions docs/research docs/flow
+  mkdir -p docs/decisions docs/research docs/flow
 
-if [[ ! -f "docs/decisions/index.md" ]]; then
-  printf '# Decisions Index\n\n> One row per decision. Newest at the bottom.\n> Full rationale: `docs/decisions/YYYY-MM-DD_topic.md`\n\n| Date | Decision | Status | File |\n|------|----------|--------|------|\n' \
-    > docs/decisions/index.md
-  echo -e "${GREEN}✓${RESET} Created docs/decisions/index.md"
-fi
+  if [[ ! -f "docs/decisions/index.md" ]]; then
+    printf '# Decisions Index\n\n> One row per decision. Newest at the bottom.\n> Full rationale: `docs/decisions/YYYY-MM-DD_topic.md`\n\n| Date | Decision | Status | File |\n|------|----------|--------|------|\n' \
+      > docs/decisions/index.md
+    ok "Created docs/decisions/index.md"
+  fi
 
-FIRST_DECISION="docs/decisions/$(date +%Y-%m-%d)_initial-setup.md"
-if [[ ! -f "$FIRST_DECISION" ]]; then
-  cat > "$FIRST_DECISION" <<EOF
+  FIRST_DECISION="docs/decisions/$(date +%Y-%m-%d)_initial-setup.md"
+  if [[ ! -f "$FIRST_DECISION" ]]; then
+    cat > "$FIRST_DECISION" <<EOF
 # Initial Setup
 
 **Date:** $(date +%Y-%m-%d)
@@ -458,20 +548,61 @@ N/A — initial project setup.
 ## Consequences
 Claude Code config layer active. All agents, hooks, and commands wired.
 EOF
-  echo "| $(date +%Y-%m-%d) | Initial setup | Active | [initial-setup.md]($(date +%Y-%m-%d)_initial-setup.md) |" \
-    >> docs/decisions/index.md
-  echo -e "${GREEN}✓${RESET} Created first decision file"
+    echo "| $(date +%Y-%m-%d) | Initial setup | Active | [initial-setup.md]($(date +%Y-%m-%d)_initial-setup.md) |" \
+      >> docs/decisions/index.md
+    ok "Created first decision file"
+  fi
+
+  if [[ ! -f "docs/research/index.md" ]]; then
+    printf '# Research Index\n\n> One row per research session. Newest at the bottom.\n> Full findings: `docs/research/YYYY-MM-DD_topic.md`\n\n| Date | Topic | Confidence | File |\n|------|-------|------------|------|\n' \
+      > docs/research/index.md
+    ok "Created docs/research/index.md"
+  fi
 fi
 
-if [[ ! -f "docs/research/index.md" ]]; then
-  printf '# Research Index\n\n> One row per research session. Newest at the bottom.\n> Full findings: `docs/research/YYYY-MM-DD_topic.md`\n\n| Date | Topic | Confidence | File |\n|------|-------|------------|------|\n' \
-    > docs/research/index.md
-  echo -e "${GREEN}✓${RESET} Created docs/research/index.md"
+# ── Write setup-config.json ────────────────────────────────────────────────────
+if [[ "$DRY_RUN" == false ]]; then
+  jq -n \
+    --arg setup_mode        "$SETUP_MODE" \
+    --arg project_name      "$PROJECT_NAME" \
+    --arg project_desc      "$PROJECT_DESC" \
+    --arg success_metric    "$SUCCESS_METRIC" \
+    --arg frontend_dir      "$FRONTEND_DIR" \
+    --arg backend_dir       "$BACKEND_DIR" \
+    --arg test_runner       "$TEST_RUNNER" \
+    --arg push_strategy     "$PUSH_STRATEGY" \
+    --arg model_tier        "$MODEL_TIER" \
+    --argjson format_on_save  "$FORMAT_ON_SAVE" \
+    --argjson session_logs    "$SESSION_LOGS" \
+    --argjson commit_signing  "$COMMIT_SIGNING" \
+    --arg branch_prefix     "$BRANCH_PREFIX" \
+    --arg review_sensitivity "$REVIEW_SENSITIVITY" \
+    --argjson agent_teams   "$AGENT_TEAMS" \
+    --arg setup_date        "$(date +%Y-%m-%d)" \
+    '{
+      setup_mode:         $setup_mode,
+      project_name:       $project_name,
+      project_desc:       $project_desc,
+      success_metric:     $success_metric,
+      frontend_dir:       $frontend_dir,
+      backend_dir:        $backend_dir,
+      test_runner:        $test_runner,
+      push_strategy:      $push_strategy,
+      model_tier:         $model_tier,
+      format_on_save:     $format_on_save,
+      session_logs:       $session_logs,
+      commit_signing:     $commit_signing,
+      branch_prefix:      $branch_prefix,
+      review_sensitivity: $review_sensitivity,
+      agent_teams:        $agent_teams,
+      setup_date:         $setup_date
+    }' > "$CONFIG_FILE"
+  ok "Saved config to ${CONFIG_FILE}"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────────
 echo ""
-section "Done"
+section "$([ "$DRY_RUN" = true ] && echo 'Summary (no changes made)' || echo 'Done')"
 echo -e "Project:          ${BOLD}${PROJECT_NAME}${RESET}"
 echo -e "Setup mode:       ${SETUP_MODE}"
 echo -e "Frontend:         ${FRONTEND_DIR}/"
@@ -485,11 +616,15 @@ echo -e "Commit signing:   $([ "$COMMIT_SIGNING" = true ] && echo 'enabled' || e
 [[ -n "$BRANCH_PREFIX" ]] && echo -e "Branch prefix:    ${BRANCH_PREFIX}/"
 echo -e "Review:           ${REVIEW_SENSITIVITY}"
 echo -e "Agent Teams:      $([ "$AGENT_TEAMS" = true ] && echo 'enabled' || echo 'disabled')"
+
+if [[ "$DRY_RUN" == false ]]; then
+  echo ""
+  echo -e "Next steps:"
+  echo -e "  1. Fill in ${CYAN}docs/flow/main.md${RESET} with your primary user flow"
+  echo -e "  2. ${CYAN}git add .claude/ CLAUDE.md REFERENCE.md docs/ .gitignore${RESET}"
+  echo -e "  3. ${CYAN}git commit -m 'chore: add Claude Code configuration'${RESET}"
+  echo -e "  4. ${CYAN}claude${RESET}  (then run /init to update any option at any time)"
+fi
+
 echo ""
-echo -e "Next steps:"
-echo -e "  1. Fill in ${CYAN}docs/flow/main.md${RESET} with your primary user flow"
-echo -e "  2. ${CYAN}git add .claude/ CLAUDE.md REFERENCE.md docs/ .gitignore${RESET}"
-echo -e "  3. ${CYAN}git commit -m 'chore: add Claude Code configuration'${RESET}"
-echo -e "  4. ${CYAN}claude${RESET}  (then run /init to finalize any remaining customization)"
-echo ""
-echo -e "${GREEN}Setup complete.${RESET}"
+echo -e "${GREEN}$([ "$DRY_RUN" = true ] && echo 'Dry-run complete. No files were changed.' || echo 'Setup complete.')${RESET}"
