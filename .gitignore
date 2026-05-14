@@ -1,3 +1,6 @@
+# Reference docs — large, not project-specific
+claude-code-research.md
+
 # Claude Code session state — never commit these
 .claude/.current-session-id
 .claude/.review-queue.txt
