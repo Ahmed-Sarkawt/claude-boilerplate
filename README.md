@@ -41,11 +41,23 @@ bash setup.sh
 
 Choose a setup mode when prompted:
 
-| Mode     | Questions | Use when                                                 |
-| -------- | --------- | -------------------------------------------------------- |
-| Auto     | 2         | Fastest — sensible defaults, just name + description     |
-| Basic    | 5         | Recommended — paths, test runner, Agent Teams            |
-| Advanced | 8         | Full control — branch strategy, push policy, extra rules |
+| Mode     | Questions | Use when                                                                          |
+| -------- | --------- | --------------------------------------------------------------------------------- |
+| Auto     | 2         | Fastest — sensible defaults, just name + description                              |
+| Basic    | 5         | Recommended — paths, test runner, Agent Teams                                     |
+| Advanced | 11        | Full control — models, branch strategy, hooks, review sensitivity, commit signing |
+
+Advanced mode exposes these additional options:
+
+| Option              | What it does                                                          |
+| ------------------- | --------------------------------------------------------------------- |
+| Git push strategy   | Allow push to main, or force feature branches only                    |
+| Model tier          | Economy (haiku all), Balanced (default), or Powerful (opus primary)   |
+| Auto-format on save | Toggle Prettier + sibling test on every file save                     |
+| Session logging     | Toggle `.claude/logs/` prompt and summary logging                     |
+| Commit signing      | Enforce `git commit -S` via git config + CLAUDE.md rule               |
+| Branch naming       | Add a hard rule enforcing a branch prefix (e.g. `feat/`, `fix/`)      |
+| Review sensitivity  | Strict (all findings), Normal (Block+Recommend), Relaxed (Block only) |
 
 **3. Verify hooks work**
 
