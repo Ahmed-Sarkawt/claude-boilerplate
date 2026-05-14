@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
 # claude-boilerplate setup script
+#
+# Interactive (human at a terminal):
+#   bash setup.sh
+#
+# Non-interactive (Claude Code or CI — pass all answers as flags):
+#   bash setup.sh --mode auto --name "My App" --desc "A task manager for devs"
+#   bash setup.sh --mode advanced --name "My App" --desc "..." \
+#     --frontend src --backend server --test-runner vitest \
+#     --push-strategy branch --model-tier balanced \
+#     --format-on-save yes --session-logs yes \
+#     --commit-signing no --branch-prefix feat \
+#     --review-sensitivity strict --agent-teams no
 set -euo pipefail
 
 RESET='\033[0m'
@@ -10,8 +22,58 @@ YELLOW='\033[33m'
 RED='\033[31m'
 DIM='\033[2m'
 
+# ── Defaults ───────────────────────────────────────────────────────────────────
+SETUP_MODE=""
+PROJECT_NAME=""
+PROJECT_DESC=""
+SUCCESS_METRIC=""
+FRONTEND_DIR="src"
+BACKEND_DIR="server"
+TEST_RUNNER="vitest"
+PUSH_STRATEGY="branch"
+MODEL_TIER="balanced"
+FORMAT_ON_SAVE=true
+SESSION_LOGS=true
+COMMIT_SIGNING=false
+BRANCH_PREFIX=""
+REVIEW_SENSITIVITY="strict"
+AGENT_TEAMS=false
+EXTRA_RULES=""
+NON_INTERACTIVE=false
+
+# ── Flag parsing ───────────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mode)             SETUP_MODE="$2";           shift 2 ;;
+    --name)             PROJECT_NAME="$2";          shift 2 ;;
+    --desc)             PROJECT_DESC="$2";          shift 2 ;;
+    --metric)           SUCCESS_METRIC="$2";        shift 2 ;;
+    --frontend)         FRONTEND_DIR="$2";          shift 2 ;;
+    --backend)          BACKEND_DIR="$2";           shift 2 ;;
+    --test-runner)      TEST_RUNNER="$2";           shift 2 ;;
+    --push-strategy)    PUSH_STRATEGY="$2";         shift 2 ;;
+    --model-tier)       MODEL_TIER="$2";            shift 2 ;;
+    --format-on-save)   [[ "$2" == "no" ]] && FORMAT_ON_SAVE=false;   shift 2 ;;
+    --session-logs)     [[ "$2" == "no" ]] && SESSION_LOGS=false;      shift 2 ;;
+    --commit-signing)   [[ "$2" == "yes" ]] && COMMIT_SIGNING=true;    shift 2 ;;
+    --branch-prefix)    BRANCH_PREFIX="$2";         shift 2 ;;
+    --review-sensitivity) REVIEW_SENSITIVITY="$2";  shift 2 ;;
+    --agent-teams)      [[ "$2" == "yes" ]] && AGENT_TEAMS=true;       shift 2 ;;
+    --extra-rules)      EXTRA_RULES="$2";           shift 2 ;;
+    *) echo "Unknown flag: $1" >&2; exit 1 ;;
+  esac
+done
+
+# If any flag was provided, skip all interactive prompts
+[[ -n "$SETUP_MODE$PROJECT_NAME$PROJECT_DESC" ]] && NON_INTERACTIVE=true
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
 ask() {
   local prompt="$1" default="${2:-}"
+  if [[ "$NON_INTERACTIVE" == true ]]; then
+    echo "${default}"
+    return
+  fi
   if [[ -n "$default" ]]; then
     read -rp "$(echo -e "${CYAN}${prompt}${RESET} [${default}]: ")" answer
   else
@@ -21,6 +83,10 @@ ask() {
 }
 
 confirm() {
+  if [[ "$NON_INTERACTIVE" == true ]]; then
+    # In non-interactive mode, caller sets the variable directly via flags
+    return 1
+  fi
   read -rp "$(echo -e "${CYAN}${1}${RESET} [y/N]: ")" answer
   [[ "${answer,,}" == "y" ]]
 }
@@ -37,7 +103,6 @@ safe_replace_in_file() {
   if ! command -v python3 >/dev/null 2>&1; then
     echo -e "${RED}✗ python3 not found — required for safe file updates.${RESET}" >&2
     echo -e "  Install: brew install python3 (macOS) | apt install python3 (Ubuntu)" >&2
-    echo -e "  Skipping replacement of: ${search}" >&2
     return 1
   fi
   python3 - "$file" "$search" "$replace" <<'PYEOF'
@@ -57,24 +122,27 @@ update_settings() {
   jq "$filter" .claude/settings.json > "$tmp" && mv "$tmp" .claude/settings.json
 }
 
+# ── Header ─────────────────────────────────────────────────────────────────────
 echo -e "${BOLD}claude-boilerplate setup${RESET}"
+[[ "$NON_INTERACTIVE" == true ]] && echo -e "${DIM}Running in non-interactive mode.${RESET}"
 echo ""
 
-# ── Mode selection ─────────────────────────────────────────────────────────────
-echo -e "${BOLD}How do you want to set up?${RESET}"
-echo -e "  ${GREEN}[1]${RESET} Auto      — sensible defaults, two questions only"
-echo -e "  ${DIM}[2]${RESET} Basic     — recommended, 5 questions ${DIM}(default)${RESET}"
-echo -e "  ${DIM}[3]${RESET} Advanced  — all options: models, branches, hooks, and more"
-echo ""
-read -rp "$(echo -e "${CYAN}Mode${RESET} [2]: ")" MODE_CHOICE
-MODE_CHOICE="${MODE_CHOICE:-2}"
+# ── Mode selection (interactive only) ─────────────────────────────────────────
+if [[ "$NON_INTERACTIVE" == false && -z "$SETUP_MODE" ]]; then
+  echo -e "${BOLD}How do you want to set up?${RESET}"
+  echo -e "  ${GREEN}[1]${RESET} Auto      — sensible defaults, two questions only"
+  echo -e "  ${DIM}[2]${RESET} Basic     — recommended, 5 questions ${DIM}(default)${RESET}"
+  echo -e "  ${DIM}[3]${RESET} Advanced  — all options: models, branches, hooks, and more"
+  echo ""
+  read -rp "$(echo -e "${CYAN}Mode${RESET} [2]: ")" MODE_CHOICE
+  case "${MODE_CHOICE:-2}" in
+    1) SETUP_MODE="auto" ;;
+    3) SETUP_MODE="advanced" ;;
+    *) SETUP_MODE="basic" ;;
+  esac
+fi
 
-case "$MODE_CHOICE" in
-  1) SETUP_MODE="auto" ;;
-  3) SETUP_MODE="advanced" ;;
-  *) SETUP_MODE="basic" ;;
-esac
-
+[[ -z "$SETUP_MODE" ]] && SETUP_MODE="basic"
 echo -e "Running ${BOLD}${SETUP_MODE}${RESET} setup.\n"
 
 # ── Dependency checks ──────────────────────────────────────────────────────────
@@ -111,41 +179,26 @@ if [[ "$MISSING_DEPS" == true ]]; then
   echo "Setup will still write config files — hooks will degrade gracefully until fixed."
 fi
 
-# ── Defaults ───────────────────────────────────────────────────────────────────
-FRONTEND_DIR="src"
-BACKEND_DIR="server"
-TEST_RUNNER="vitest"
-AGENT_TEAMS=false
-EXTRA_RULES=""
-SUCCESS_METRIC=""
-PUSH_STRATEGY="branch"       # branch | main
-MODEL_TIER="balanced"        # economy | balanced | powerful
-FORMAT_ON_SAVE=true
-SESSION_LOGS=true
-COMMIT_SIGNING=false
-BRANCH_PREFIX=""
-REVIEW_SENSITIVITY="strict"  # strict | normal | relaxed
-
 # ── 1. Project basics (every mode) ────────────────────────────────────────────
 section "1. Project basics"
 
-PROJECT_NAME=$(ask "Project name" "$(basename "$PWD")")
-PROJECT_DESC=$(ask "One sentence: what does this project do and who is it for?")
+[[ -z "$PROJECT_NAME" ]] && PROJECT_NAME=$(ask "Project name" "$(basename "$PWD")")
+[[ -z "$PROJECT_DESC" ]] && PROJECT_DESC=$(ask "One sentence: what does this project do and who is it for?")
 
 # ── 2. Basic questions ────────────────────────────────────────────────────────
 if [[ "$SETUP_MODE" == "basic" || "$SETUP_MODE" == "advanced" ]]; then
   section "2. Source paths & tooling"
 
-  FRONTEND_DIR=$(ask "Frontend source directory" "src")
-  BACKEND_DIR=$(ask "Backend source directory (leave blank if none)" "server")
-  TEST_RUNNER=$(ask "Test runner (vitest/jest)" "vitest")
-  SUCCESS_METRIC=$(ask "Primary success metric (e.g. 'time to first value < 5 min')")
+  FRONTEND_DIR=$(ask "Frontend source directory" "$FRONTEND_DIR")
+  BACKEND_DIR=$(ask "Backend source directory (leave blank if none)" "$BACKEND_DIR")
+  TEST_RUNNER=$(ask "Test runner (vitest/jest)" "$TEST_RUNNER")
+  SUCCESS_METRIC=$(ask "Primary success metric (e.g. 'time to first value < 5 min')" "$SUCCESS_METRIC")
 
   section "3. Multi-worktree coordination"
 
   echo "Agent Teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1) lets multiple Claude"
   echo "instances share a task list when running in parallel worktrees."
-  if confirm "Enable experimental Agent Teams?"; then
+  if [[ "$NON_INTERACTIVE" == false ]] && confirm "Enable experimental Agent Teams?"; then
     AGENT_TEAMS=true
   fi
 fi
@@ -153,76 +206,84 @@ fi
 # ── 3. Advanced questions ─────────────────────────────────────────────────────
 if [[ "$SETUP_MODE" == "advanced" ]]; then
 
-  # Git push strategy
   section "4. Git push strategy"
-  echo "Controls whether Claude can push directly to main."
-  echo ""
-  echo -e "  ${GREEN}[1]${RESET} Feature branches only  — Claude always pushes to a branch, never main ${DIM}(default, safer)${RESET}"
-  echo -e "  ${DIM}[2]${RESET} Allow push to main      — Claude can push directly to main"
-  echo ""
-  read -rp "$(echo -e "${CYAN}Strategy${RESET} [1]: ")" PUSH_CHOICE
-  [[ "${PUSH_CHOICE:-1}" == "2" ]] && PUSH_STRATEGY="main"
+  if [[ "$NON_INTERACTIVE" == false ]]; then
+    echo "Controls whether Claude can push directly to main."
+    echo ""
+    echo -e "  ${GREEN}[1]${RESET} Feature branches only  — Claude always pushes to a branch, never main ${DIM}(default, safer)${RESET}"
+    echo -e "  ${DIM}[2]${RESET} Allow push to main      — Claude can push directly to main"
+    echo ""
+    read -rp "$(echo -e "${CYAN}Strategy${RESET} [1]: ")" PUSH_CHOICE
+    [[ "${PUSH_CHOICE:-1}" == "2" ]] && PUSH_STRATEGY="main"
+  fi
 
-  # Model tier
   section "5. Default model tier"
-  echo "Controls which Claude model powers each agent. Higher tiers cost more but produce better results."
-  echo ""
-  echo -e "  ${DIM}[1]${RESET} Economy   — haiku for all agents (fastest, cheapest)"
-  echo -e "  ${GREEN}[2]${RESET} Balanced  — sonnet for primary, haiku for utility ${DIM}(default)${RESET}"
-  echo -e "  ${DIM}[3]${RESET} Powerful  — opus for primary, sonnet for utility (best quality, highest cost)"
-  echo ""
-  read -rp "$(echo -e "${CYAN}Tier${RESET} [2]: ")" MODEL_CHOICE
-  case "${MODEL_CHOICE:-2}" in
-    1) MODEL_TIER="economy" ;;
-    3) MODEL_TIER="powerful" ;;
-    *) MODEL_TIER="balanced" ;;
-  esac
+  if [[ "$NON_INTERACTIVE" == false ]]; then
+    echo "Controls which Claude model powers each agent."
+    echo ""
+    echo -e "  ${DIM}[1]${RESET} Economy   — haiku for all agents (fastest, cheapest)"
+    echo -e "  ${GREEN}[2]${RESET} Balanced  — sonnet for primary, haiku for utility ${DIM}(default)${RESET}"
+    echo -e "  ${DIM}[3]${RESET} Powerful  — opus for primary, sonnet for utility"
+    echo ""
+    read -rp "$(echo -e "${CYAN}Tier${RESET} [2]: ")" MODEL_CHOICE
+    case "${MODEL_CHOICE:-2}" in
+      1) MODEL_TIER="economy" ;;
+      3) MODEL_TIER="powerful" ;;
+      *) MODEL_TIER="balanced" ;;
+    esac
+  fi
 
-  # Auto-format on save
   section "6. Auto-format on save"
-  echo "Runs Prettier + the file's sibling test automatically on every file save."
-  if ! confirm "Enable auto-format and test on save?"; then
-    FORMAT_ON_SAVE=false
+  if [[ "$NON_INTERACTIVE" == false ]]; then
+    echo "Runs Prettier + the file's sibling test automatically on every file save."
+    if ! confirm "Enable auto-format and test on save?"; then
+      FORMAT_ON_SAVE=false
+    fi
   fi
 
-  # Session logging
   section "7. Session logging"
-  echo "Writes every prompt and session summary to .claude/logs/. Used by /session-log."
-  if ! confirm "Enable session logging?"; then
-    SESSION_LOGS=false
+  if [[ "$NON_INTERACTIVE" == false ]]; then
+    echo "Writes every prompt and session summary to .claude/logs/. Used by /session-log."
+    if ! confirm "Enable session logging?"; then
+      SESSION_LOGS=false
+    fi
   fi
 
-  # Commit signing
   section "8. Commit signing"
-  echo "Requires GPG. Sets git config commit.gpgsign=true and adds a hard rule to CLAUDE.md."
-  if confirm "Enforce signed commits?"; then
-    COMMIT_SIGNING=true
+  if [[ "$NON_INTERACTIVE" == false ]]; then
+    echo "Requires GPG. Sets git config commit.gpgsign=true and adds a hard rule to CLAUDE.md."
+    if confirm "Enforce signed commits?"; then
+      COMMIT_SIGNING=true
+    fi
   fi
 
-  # Branch naming
   section "9. Branch naming convention"
-  echo "Adds a hard rule to CLAUDE.md so Claude always names branches consistently."
-  echo "Examples: feat, fix, claude, chore"
-  BRANCH_PREFIX=$(ask "Branch prefix (leave blank to skip)")
+  if [[ "$NON_INTERACTIVE" == false ]]; then
+    echo "Adds a hard rule to CLAUDE.md so Claude always names branches consistently."
+    echo "Examples: feat, fix, claude, chore"
+    BRANCH_PREFIX=$(ask "Branch prefix (leave blank to skip)")
+  fi
 
-  # Review sensitivity
   section "10. Review sensitivity"
-  echo "Controls which findings the code-reviewer includes in its output."
-  echo ""
-  echo -e "  ${GREEN}[1]${RESET} Strict   — reports 🔴 Block, 🟡 Recommend, and 🟢 Note ${DIM}(default)${RESET}"
-  echo -e "  ${DIM}[2]${RESET} Normal   — reports 🔴 Block and 🟡 Recommend only"
-  echo -e "  ${DIM}[3]${RESET} Relaxed  — reports 🔴 Block only"
-  echo ""
-  read -rp "$(echo -e "${CYAN}Sensitivity${RESET} [1]: ")" REVIEW_CHOICE
-  case "${REVIEW_CHOICE:-1}" in
-    2) REVIEW_SENSITIVITY="normal" ;;
-    3) REVIEW_SENSITIVITY="relaxed" ;;
-    *) REVIEW_SENSITIVITY="strict" ;;
-  esac
+  if [[ "$NON_INTERACTIVE" == false ]]; then
+    echo "Controls which findings the code-reviewer includes in its output."
+    echo ""
+    echo -e "  ${GREEN}[1]${RESET} Strict   — reports 🔴 Block, 🟡 Recommend, and 🟢 Note ${DIM}(default)${RESET}"
+    echo -e "  ${DIM}[2]${RESET} Normal   — reports 🔴 Block and 🟡 Recommend only"
+    echo -e "  ${DIM}[3]${RESET} Relaxed  — reports 🔴 Block only"
+    echo ""
+    read -rp "$(echo -e "${CYAN}Sensitivity${RESET} [1]: ")" REVIEW_CHOICE
+    case "${REVIEW_CHOICE:-1}" in
+      2) REVIEW_SENSITIVITY="normal" ;;
+      3) REVIEW_SENSITIVITY="relaxed" ;;
+      *) REVIEW_SENSITIVITY="strict" ;;
+    esac
+  fi
 
-  # Project-specific rules
   section "11. Project-specific rules"
-  EXTRA_RULES=$(ask "Any project-specific hard rules to add? (leave blank to skip)")
+  if [[ "$NON_INTERACTIVE" == false ]]; then
+    EXTRA_RULES=$(ask "Any project-specific hard rules to add? (leave blank to skip)")
+  fi
 fi
 
 # ── Apply changes ──────────────────────────────────────────────────────────────
@@ -313,9 +374,7 @@ if [[ "$COMMIT_SIGNING" == true ]]; then
   if git rev-parse --git-dir >/dev/null 2>&1; then
     git config commit.gpgsign true
   fi
-  # Also add as a hard rule so Claude enforces it when committing
-  RULE_NUM=$(grep -c '^\d\+\.' CLAUDE.md 2>/dev/null || echo "8")
-  echo "${RULE_NUM}. **Sign all commits. Always use \`git commit -S\`. Never use \`--no-gpg-sign\`.**" >> CLAUDE.md
+  echo "8. **Sign all commits. Always use \`git commit -S\`. Never use \`--no-gpg-sign\`.**" >> CLAUDE.md
   echo -e "${GREEN}✓${RESET} Commit signing enforced (git config + CLAUDE.md rule)"
   echo -e "  ${YELLOW}Requires a GPG key: https://docs.github.com/authentication/managing-commit-signature-verification${RESET}"
 fi
