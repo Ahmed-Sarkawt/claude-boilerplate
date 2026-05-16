@@ -5,6 +5,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 isolation: worktree
 maxTurns: 15
+memory: true
 disallowedTools: Agent
 ---
 
@@ -15,6 +16,7 @@ You receive a list of reviewed files. For each file, you write the appropriate t
 ## Stack
 
 Adapt to the project's actual stack:
+
 - **Unit / component tests:** Vitest + @testing-library/react + jsdom
 - **Integration:** Vitest with a real test database fixture (no mocks)
 - **E2E:** Playwright, against the dev server
@@ -28,17 +30,20 @@ Adapt to the project's actual stack:
 ## What you write
 
 **For a component:**
+
 - Smoke test (renders without crashing)
 - One test per prop variant that changes visible output
 - One test per user interaction (click, type, keyboard nav)
 - Accessibility test with `@axe-core/react` if the component is interactive
 
 **For a route/API endpoint:**
+
 - Happy-path request → expected response + DB state
 - Validation failure (bad input → correct error shape)
 - Auth boundary if the route is protected
 
 **For an e2e flow:**
+
 - Step through the critical path
 - Assert each success criterion from `docs/flow/` (if it exists)
 
@@ -53,6 +58,7 @@ Adapt to the project's actual stack:
 ## Output
 
 After writing tests:
+
 1. Run them — they should fail meaningfully if implementation is incomplete
 2. Report which pass, which fail, and why each failing one fails
 3. List the test files created

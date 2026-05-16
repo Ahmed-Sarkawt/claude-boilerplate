@@ -95,4 +95,22 @@ fi
 echo "[${TS_END}] end — ${SESSION_ID} — branch:${BRANCH} prompts:${PROMPT_COUNT:-?} files:${FILES_COUNT:-?}" \
   >> .claude/logs/sessions.log 2>/dev/null || true
 
+# ── MEMORY.md cap check ───────────────────────────────────────────────────────
+# First 200 lines / 25 KB load on every session start — content beyond is silently dropped.
+# Warn when approaching the line cap so Claude knows to prune before next session.
+MEMORY_FILE=".claude/memory/MEMORY.md"
+if [[ -f "$MEMORY_FILE" ]]; then
+  MEMORY_LINES=$(wc -l < "$MEMORY_FILE" | tr -d ' ')
+  MEMORY_BYTES=$(wc -c < "$MEMORY_FILE" | tr -d ' ')
+  if [[ "${MEMORY_LINES:-0}" -ge 180 || "${MEMORY_BYTES:-0}" -ge 24000 ]]; then
+    {
+      echo ""
+      echo "## ⚠ MEMORY.md cap warning — ${SESSION_ID}"
+      echo "- Lines: ${MEMORY_LINES}/200 | Bytes: ${MEMORY_BYTES}/25600"
+      echo "- Content beyond line 200 or 25 KB is silently dropped at session start."
+      echo "- Action: prune stale entries in .claude/memory/MEMORY.md before next session."
+    } >> "$SUMMARY_FILE" 2>/dev/null || true
+  fi
+fi
+
 exit 0

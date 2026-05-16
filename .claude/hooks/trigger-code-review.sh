@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # PostToolUse — queues source files for review. Human-in-the-loop via /review.
-# Handles Write, Edit, and MultiEdit (which may pass a single file_path or an array).
+# Handles Write, Edit, and MultiEdit.
+# Writes two files:
+#   .claude/.review-queue.txt       — plain list of paths (one per line, deduped)
+#   .claude/.review-queue-meta.jsonl — one JSON object per queued file with rich context
 set -uo pipefail
 
 INPUT=$(cat)
 
-# Extract file path(s) — handles both single string (Write/Edit/MultiEdit)
-# and a potential files array format if Claude Code changes the MultiEdit schema.
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // "unknown"' 2>/dev/null || echo "unknown")
+
 FILE_PATHS=$(echo "$INPUT" | jq -r '
   if .tool_input.file_path and (.tool_input.file_path | type) == "string" then
     .tool_input.file_path
@@ -17,6 +20,9 @@ FILE_PATHS=$(echo "$INPUT" | jq -r '
   end' 2>/dev/null || echo "")
 
 [[ -z "$FILE_PATHS" ]] && exit 0
+
+SESSION_ID=$(cat .claude/.current-session-id 2>/dev/null || echo "unknown")
+QUEUED_AT=$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
 
 queue_file() {
   local FILE_PATH="$1"
@@ -43,10 +49,28 @@ queue_file() {
   esac
 
   QUEUE_FILE=".claude/.review-queue.txt"
+  META_FILE=".claude/.review-queue-meta.jsonl"
   mkdir -p .claude
+
+  # Plain queue — deduped filename list (unchanged format, backward-compatible)
   grep -qxF "$FILE_PATH" "$QUEUE_FILE" 2>/dev/null || echo "$FILE_PATH" >> "$QUEUE_FILE"
 
-  if [[ -f ".claude/.current-session-id" ]] && command -v jq >/dev/null 2>&1; then
+  # Rich metadata — one JSON object per file per edit event (not deduped — captures all edits)
+  IS_NEW_FILE=false
+  [[ "$TOOL_NAME" == "Write" ]] && IS_NEW_FILE=true
+  if command -v jq >/dev/null 2>&1; then
+    jq -n \
+      --arg path       "$FILE_PATH" \
+      --arg edit_type  "$TOOL_NAME" \
+      --arg queued_at  "$QUEUED_AT" \
+      --arg session_id "$SESSION_ID" \
+      --argjson is_new "$IS_NEW_FILE" \
+      '{path: $path, edit_type: $edit_type, queued_at: $queued_at, session_id: $session_id, is_new_file: $is_new}' \
+      >> "$META_FILE"
+  fi
+
+  # Session log
+  if command -v jq >/dev/null 2>&1; then
     DATA=$(jq -n --arg fp "$FILE_PATH" '{file_path: $fp}' 2>/dev/null) || DATA="{}"
     bash .claude/hooks/session-logger.sh "review_queued" "$DATA" 2>/dev/null || true
   fi
@@ -54,7 +78,6 @@ queue_file() {
   echo "📋 Queued for review: $FILE_PATH (run /review when ready)"
 }
 
-# Process each file path (handles single or multiple)
 while IFS= read -r path; do
   queue_file "$path"
 done <<< "$FILE_PATHS"

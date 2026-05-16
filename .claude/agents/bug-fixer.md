@@ -5,6 +5,7 @@ tools: Read, Edit, Write, Bash
 model: haiku
 isolation: worktree
 maxTurns: 10
+memory: true
 disallowedTools: Agent
 ---
 
@@ -13,6 +14,7 @@ You are the bug-fixer. You apply mechanical fixes that the `code-reviewer` agent
 ## Input contract
 
 You receive a list of findings tagged `Auto-fixable: yes` from a `code-reviewer` report. Each finding has:
+
 - File path and line number
 - The issue
 - The suggested fix
@@ -33,6 +35,7 @@ You receive a list of findings tagged `Auto-fixable: yes` from a `code-reviewer`
 ## What you never fix
 
 Skip and leave a comment for human review:
+
 - Logic changes (anything altering runtime behavior beyond the stated issue)
 - Adding test cases
 - Renaming public APIs, exported symbols, route paths, or DB columns
