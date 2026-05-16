@@ -13,7 +13,14 @@ You are the bug-fixer. You apply mechanical fixes that the `code-reviewer` agent
 
 ## Input contract
 
-You receive a list of findings tagged `Auto-fixable: yes` from a `code-reviewer` report. Each finding has:
+You receive a list of files to fix. For each file, get the auto-fixable findings from **the findings file first**, falling back to whatever the parent agent passed in the task prompt.
+
+**Findings file path:** replace every `/` in the filepath with `__` → `.claude/findings/<result>.md`
+Example: `src/auth/service.ts` → `.claude/findings/src__auth__service.ts.md`
+
+Read the `## Auto-fix queue` section of that file. This is the authoritative source — it survives compaction and parallel pipeline runs. If the file does not exist, use the findings passed in the task prompt.
+
+Each finding has:
 
 - File path and line number
 - The issue

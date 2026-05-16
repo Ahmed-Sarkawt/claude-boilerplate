@@ -5,6 +5,7 @@ description: Process the code review queue — invoke code-reviewer, apply auto-
 Read `.claude/.review-queue.txt`.
 
 If the file is empty or missing: check if `.claude/.review-queue-active.txt` exists.
+
 - If active file exists: a previous review was interrupted. Ask the user: "A previous /review was interrupted. Resume it? (yes/no)". On yes, use the active file as the queue. On no, delete the active file and stop.
 - If neither file exists or both are empty: say "Review queue is empty." and stop.
 
@@ -12,34 +13,43 @@ Otherwise:
 
 **Step 1 — Move queue to active state**
 Move (not copy, not clear) the queue file so a crash mid-review leaves a recoverable record:
+
 ```bash
 mv .claude/.review-queue.txt .claude/.review-queue-active.txt
 ```
+
 Read the file list from `.claude/.review-queue-active.txt`.
 
 **Step 2 — Review each file**
 For each file path:
+
 - Invoke the `code-reviewer` subagent.
-- Collect all findings tagged `Auto-fixable: yes` into a running list.
+- The reviewer will write its findings to `.claude/findings/<path with / replaced by __>.md` automatically.
+- Collect all findings tagged `Auto-fixable: yes` into a running list (from the reviewer's response).
 
 **Step 3 — Report**
 Show a summary: files reviewed, findings by severity (🔴/🟡/🟢), count of auto-fixable.
+Also show which findings files were written so the user can inspect them directly.
 
 **Step 4 — Apply fixes**
 Ask: "Apply auto-fixes with bug-fixer? (yes/no)"
-- On `yes`: invoke `bug-fixer` with the full auto-fixable findings list.
+
+- On `yes`: invoke `bug-fixer` with the list of files. The bug-fixer reads each file's findings file as its primary source — you do not need to pass the full findings list in the prompt.
 - On `no`: show the list of manual fixes needed and stop.
 
 **Step 5 — Write tests (automatic after bug-fixer)**
 After bug-fixer completes, invoke `test-writer` with the list of reviewed files.
-The test-writer writes failing tests for each reviewed file, then reports results.
+The test-writer reads each findings file for context on what to cover.
 This step is not optional — tests are part of the definition of done.
 
 **Step 6 — Mark complete**
 Delete the active file to signal clean completion:
+
 ```bash
 rm -f .claude/.review-queue-active.txt
 ```
+
+Do NOT delete the findings files — they persist as history and are used by the next review of the same file to detect recurring issues.
 
 ---
 
