@@ -34,46 +34,13 @@ Both paths read and write `.claude/setup-config.json`, so switching between them
 
 ## Quick start (5 minutes)
 
-**1. Copy into your project**
+**1. Run setup**
 
 ```bash
-cp -r claude-boilerplate/.claude       your-project/
-cp    claude-boilerplate/CLAUDE.md     your-project/
-cp    claude-boilerplate/REFERENCE.md  your-project/
-cp    claude-boilerplate/setup.sh      your-project/
-cp    claude-boilerplate/.gitignore    your-project/
-cp    claude-boilerplate/claude-code-research.md your-project/
-cp -r claude-boilerplate/docs          your-project/
-```
-
-**2. Run setup**
-
-```bash
-cd your-project
 bash setup.sh
 ```
 
-Choose a setup mode when prompted:
-
-| Mode     | Questions | Use when                                                                          |
-| -------- | --------- | --------------------------------------------------------------------------------- |
-| Auto     | 2         | Fastest — sensible defaults, just name + description                              |
-| Basic    | 5         | Recommended — paths, test runner, Agent Teams                                     |
-| Advanced | 11        | Full control — models, branch strategy, hooks, review sensitivity, commit signing |
-
-Advanced mode exposes these additional options:
-
-| Option              | What it does                                                          |
-| ------------------- | --------------------------------------------------------------------- |
-| Git push strategy   | Allow push to main, or force feature branches only                    |
-| Model tier          | Economy (haiku all), Balanced (default), or Powerful (opus primary)   |
-| Auto-format on save | Toggle Prettier + sibling test on every file save                     |
-| Session logging     | Toggle `.claude/logs/` prompt and summary logging                     |
-| Commit signing      | Enforce `git commit -S` via git config + CLAUDE.md rule               |
-| Branch naming       | Add a hard rule enforcing a branch prefix (e.g. `feat/`, `fix/`)      |
-| Review sensitivity  | Strict (all findings), Normal (Block+Recommend), Relaxed (Block only) |
-
-**3. Verify hooks work**
+**2. Verify hooks work**
 
 ```bash
 bash .claude/tests/run-tests.sh
@@ -81,84 +48,20 @@ bash .claude/tests/run-tests.sh
 
 All tests should pass before your first session.
 
-**4. Commit**
+**3. Commit**
 
 ```bash
 git add .claude/ CLAUDE.md REFERENCE.md docs/ .gitignore
 git commit -m "chore: add Claude Code configuration"
 ```
 
-**5. Open Claude Code**
+**4. Open Claude Code**
 
 ```bash
 claude
 ```
 
 Run `/init` if you want to make further customizations interactively.
-
----
-
-## What's inside
-
-```
-.claude/
-├── agents/
-│   ├── code-reviewer.md        # Reviews code for quality, security, a11y — sonnet
-│   ├── bug-fixer.md            # Applies auto-fixable findings from code-reviewer — haiku
-│   ├── researcher.md           # Plans research (sonnet) then delegates fetching to executor
-│   ├── research-executor.md    # Executes web searches and page fetches — haiku (cheap)
-│   ├── test-writer.md          # Writes failing tests after /review completes — sonnet
-│   ├── ux-auditor.md           # Audits against 10 UX laws + WCAG AA — secondary
-│   └── doc-updater.md          # Keeps docs/flow/ and docs/decisions/ in sync — secondary
-├── hooks/
-│   ├── session-start.sh        # Injects agent map, branch, decisions, research on session open
-│   ├── session-end.sh          # Writes session summary to .claude/logs/
-│   ├── session-logger.sh       # Core JSONL event logger (called by other hooks)
-│   ├── prompt-logger.sh        # Logs every user prompt for session analysis
-│   ├── guard-dangerous-bash.sh # Blocks rm -rf, DROP TABLE, curl|sh, push to main
-│   ├── format-and-test.sh      # Prettier + sibling test on every file save
-│   ├── trigger-code-review.sh  # Queues changed source files for /review
-│   ├── prompt-reference-update.sh  # Prompts Claude to update REFERENCE.md on new file
-│   ├── suggest-doc-update.sh   # Suggests doc-updater when routes/API/schema change
-│   ├── pre-compact.sh          # Preserves critical context during auto-compaction
-│   └── subagent-stop.sh        # Suggests next step after each agent completes
-├── commands/
-│   ├── review.md               # /review — full pipeline: code-reviewer → bug-fixer → test-writer
-│   ├── research.md             # /research — manual research trigger
-│   ├── audit-ux.md             # /audit-ux — UX + accessibility audit
-│   ├── session-log.md          # /session-log — analyze session cost, tokens, patterns
-│   └── init.md                 # /init — interactive customization wizard
-├── rules/
-│   ├── frontend.md             # Auto-loaded for *.tsx/*.jsx — a11y, hooks, semantics
-│   ├── backend.md              # Auto-loaded for server/*.ts — SQL safety, validation
-│   └── testing.md              # Auto-loaded for *.test.* — selectors, naming, scope
-├── skills/
-│   ├── laws-of-ux/             # 10 UX laws with application guidance
-│   ├── react-ts-standards/     # TypeScript strict, component patterns, testing
-│   └── agent-team/             # Full agent graph, chains, cost guidance
-├── scripts/
-│   ├── new-research.sh         # Creates a research file with correct naming + updates index
-│   └── new-decision.sh         # Creates a decision file with correct naming + updates index
-├── tests/
-│   └── run-tests.sh            # Hook test suite — run before first session
-├── memory/
-│   └── MEMORY.md               # Auto-memory index (managed by Claude Code)
-├── OVERVIEW.md                 # Full agent map + file map — read when disoriented
-└── settings.json               # All hook wiring
-CLAUDE.md                       # Master instructions + coding guidelines (read every session)
-REFERENCE.md                    # File index — fill in as you build
-docs/
-├── decisions/
-│   └── index.md                # Compact table of all decisions
-├── research/
-│   └── index.md                # Compact table of all research sessions
-└── flow/
-    ├── index.md                # Flow overview table
-    └── main.md                 # Your primary user flow — fill in after setup
-setup.sh                        # Interactive setup script (run once)
-.gitignore                      # Excludes session logs, queue state, .env files
-claude-code-research.md         # 1400-line reference: hooks, agents, patterns, UX laws
-```
 
 ---
 
@@ -187,26 +90,9 @@ When Claude hits a knowledge gap, the researcher fires automatically. It:
 
 Findings persist across sessions via the index file.
 
-### Context injection (every session start)
-
-```
-Agent map + branch + last 8 decisions + last 8 research entries
-+ FILL IN warning if CLAUDE.md uncustomized
-+ interrupted review warning if /review was crashed
-```
-
-Claude always has the right context without you repeating yourself.
-
 ### Safety guards
 
-`guard-dangerous-bash.sh` blocks **before** execution (hard block — exit 2):
-
-- `rm -r`, `rm -rf`, `rm -Rf`, `rm --recursive`
-- `DROP TABLE` / `drop table` (case-insensitive)
-- `DROP DATABASE`, `TRUNCATE TABLE`
-- `curl … | sh`, `wget … | sh`, `npx … | sh`
-- Push to `main` or `master` without `ALLOW_PUSH_MAIN=1`
-- Fork bombs, `mkfs`, `dd if=…of=/dev/`
+Dangerous commands are blocked before execution — `rm -rf`, SQL drops, `curl | sh`, and direct pushes to main.
 
 ### Docs structure
 
@@ -272,36 +158,6 @@ paths: ["src/payments/**/*.ts"]
 - All Stripe calls go through src/lib/stripe.ts
 ```
 
-### Add a new agent
-
-```text
-<!-- .claude/agents/my-agent.md -->
----
-name: my-agent
-description: One sentence on when to invoke this agent.
-tools: Read, Grep, Glob
-model: haiku
-maxTurns: 8
----
-
-Your instructions here.
-```
-
-### Record a decision manually
-
-```bash
-FILE=$(bash .claude/scripts/new-decision.sh "auth-strategy" "Authentication Strategy")
-# Write content into $FILE
-```
-
-### Enable multi-worktree Agent Teams
-
-```bash
-# setup.sh handles this, or manually:
-echo "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1" >> .env.claude
-source .env.claude && claude
-```
-
 ---
 
 ## Troubleshooting
@@ -311,12 +167,6 @@ source .env.claude && claude
 | `/review` says queue is empty                | Check your source files match patterns in `trigger-code-review.sh`                 |
 | Session start warns about interrupted review | Run `/review` to resume, or `rm .claude/.review-queue-active.txt`                  |
 | Tests failing in `run-tests.sh`              | Run from project root; run `bash .claude/hooks/session-start.sh > /dev/null` first |
-
----
-
-## Token and cost tracking
-
-Session logs capture prompt character counts and agent invocations. Accurate token counts and USD cost require Claude Code to expose session metadata in the Stop hook — availability depends on your Claude Code version. Run `/session-log` to see what's available.
 
 ---
 
