@@ -1,4 +1,4 @@
-# claude-boilerplate
+# Claude Boilerplate
 
 A production-grade Claude Code configuration layer. Drop it into any project and get a structured agent team, automated quality gates, persistent memory across sessions, and enforced coding standards — without writing any of it yourself.
 
