@@ -30,7 +30,12 @@ If the file exists, read it. Use it to:
 - Check whether previously flagged Block issues have been fixed. If the same issue recurs, escalate its severity and note it as a repeat.
 - Understand what the last reviewer found so you don't re-explain already-known context.
 
-Both reads are free — no tokens beyond the file content itself.
+**3. Check project-specific corrections.**
+Read `.claude/memory/agent-corrections.md` and find entries under `## code-reviewer`.
+Each entry is a permanent rule that overrides your defaults for this project.
+Apply them exactly — they exist because a default behaviour was wrong for this codebase.
+
+All three reads are free — no tokens beyond the file content itself.
 
 ## What to check
 

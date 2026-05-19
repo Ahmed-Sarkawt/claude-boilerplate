@@ -25,6 +25,9 @@ Use the findings file to:
 
 If the findings file does not exist, proceed with standard coverage tests.
 
+Also read `.claude/memory/agent-corrections.md` and find entries under `## test-writer`.
+Apply any project-specific rules there before writing tests.
+
 ## Stack
 
 Adapt to the project's actual stack:
