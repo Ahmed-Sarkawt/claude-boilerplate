@@ -3,7 +3,7 @@
   "autoMemoryEnabled": true,
   "autoMemoryDirectory": ".claude/memory/",
   "worktree": {
-    "baseRef": "main",
+    "baseRef": "head",
     "symlinkDirectories": ["node_modules"]
   },
   "hooks": {
