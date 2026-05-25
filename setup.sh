@@ -45,7 +45,7 @@ SESSION_LOGS=true
 COMMIT_SIGNING=false
 BRANCH_PREFIX=""
 REVIEW_SENSITIVITY="strict"
-AGENT_TEAMS=false
+AGENT_TEAMS=true
 EXTRA_RULES=""
 NON_INTERACTIVE=false
 DRY_RUN=false
@@ -253,8 +253,9 @@ if [[ "$SETUP_MODE" == "basic" || "$SETUP_MODE" == "advanced" ]]; then
 
   section "3. Multi-worktree coordination"
   echo "Agent Teams lets multiple Claude instances share a task list in parallel worktrees."
-  if [[ "$NON_INTERACTIVE" == false ]] && confirm "Enable experimental Agent Teams?"; then
-    AGENT_TEAMS=true
+  echo "It is enabled by default via settings.json."
+  if [[ "$NON_INTERACTIVE" == false ]] && ! confirm "Keep Agent Teams enabled? (recommended)"; then
+    AGENT_TEAMS=false
   fi
 fi
 

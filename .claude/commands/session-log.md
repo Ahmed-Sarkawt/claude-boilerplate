@@ -17,6 +17,7 @@ cat ".claude/logs/sessions/$(cat .claude/.current-session-id 2>/dev/null).jsonl"
 ## Historical analysis
 
 List recent sessions:
+
 ```bash
 ls -lt .claude/logs/sessions/ | head -10
 ```
@@ -28,9 +29,9 @@ For each session file you want to analyze, read it and extract:
    - Total user prompts (count of `user_prompt` events)
 
 2. **Token usage**
-   - Sum `input_tokens_approx` across all `user_prompt` events → estimated input tokens from prompts
+   - Sum `char_count` across all `user_prompt` events → rough prompt size indicator (chars, not tokens)
    - If `session_end.data.input_tokens` is non-zero → use Claude Code's actual count
-   - Note: output tokens are not captured without Stop hook metadata from Claude Code
+   - Note: token approximation from prompt chars is not available; accurate counts require Stop hook metadata from Claude Code
 
 3. **Cost**
    - From `session_end.data.cost_usd` if available
@@ -61,7 +62,7 @@ For each session file you want to analyze, read it and extract:
 - Date / Branch / Duration / Prompts
 
 ### Token & cost
-- Input tokens (approx or actual) / Output tokens / Cost
+- Input chars (prompt size proxy) / Actual tokens (if available) / Cost
 
 ### Activity
 - Files changed: <list>
@@ -74,4 +75,4 @@ For each session file you want to analyze, read it and extract:
 - Recommendation: <one actionable suggestion based on patterns>
 ```
 
-If cost data is unavailable from Claude Code, note: "Accurate token counts require Stop hook metadata. Prompt-based approximation shown (chars ÷ 4)."
+If cost data is unavailable from Claude Code, note: "Accurate token counts require Stop hook metadata. Prompt chars are logged but token approximation (chars ÷ 4) is not reliable enough to display."

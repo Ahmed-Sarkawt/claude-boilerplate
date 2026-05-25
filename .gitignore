@@ -4,8 +4,11 @@ claude-code-research.md
 # Claude Code session state — never commit these
 .claude/.current-session-id
 .claude/.review-queue.txt
+.claude/.review-queue-active.txt
+.claude/.review-queue-meta.jsonl
 .claude/.no-validate
 .claude/logs/
+.claude/findings/
 .env.claude
 
 # Backup files left by setup.sh

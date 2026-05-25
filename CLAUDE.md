@@ -40,19 +40,21 @@ Minimum code that solves the problem. Nothing speculative.
 - No error handling for impossible scenarios.
 - If you write 200 lines and it could be 50, rewrite it.
 
-Ask yourself: *"Would a senior engineer say this is overcomplicated?"* If yes, simplify.
+Ask yourself: _"Would a senior engineer say this is overcomplicated?"_ If yes, simplify.
 
 ### 3. Surgical changes
 
 Touch only what you must. Clean up only your own mess.
 
 When editing existing code:
+
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
 - If you notice unrelated dead code, mention it — don't delete it.
 
 When your changes create orphans:
+
 - Remove imports/variables/functions that **your** changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
@@ -63,23 +65,26 @@ The test: every changed line should trace directly to the user's request.
 Define success criteria. Loop until verified.
 
 Transform tasks into verifiable goals:
+
 - "Add validation" → "Write tests for invalid inputs, then make them pass"
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
 
 For multi-step tasks, state a brief plan:
+
 ```
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]
 3. [Step] → verify: [check]
 ```
+
 Strong success criteria enable independent looping. Weak criteria ("make it work") require constant clarification.
 
 ## Working conventions
 
 - **Plan before code.** For anything touching more than one file, record the decision in `docs/decisions/` first. Date-stamped, with rationale.
 - **Small commits, conventional messages.** `feat(scope): …`, `fix(scope): …`, `docs: …`. One concern per commit.
-- **Multi-worktree by default.** Multiple Claude sessions can work in parallel using `git worktree`. Enable Agent Teams with `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- **Multi-worktree by default.** Multiple Claude sessions can work in parallel using `git worktree`. Agent Teams is already enabled via `.claude/settings.json` — no extra setup needed.
 
 ## Definition of done
 
@@ -90,15 +95,15 @@ Strong success criteria enable independent looping. Weak criteria ("make it work
 
 ## Where things live
 
-| Path | What |
-|------|------|
+| Path                  | What                                                         |
+| --------------------- | ------------------------------------------------------------ |
 | `.claude/OVERVIEW.md` | Agent map, file map, when-stuck flow — read when disoriented |
-| `REFERENCE.md` | Codebase file index — read before exploring |
-| `docs/decisions/` | One file per decision + `index.md` compact table |
-| `docs/research/` | One file per research session + `index.md` compact table |
-| `docs/flow/` | One file per user flow + `index.md` overview |
-| `.claude/agents/` | Subagent definitions |
-| `.claude/rules/` | Path-scoped rules (auto-loaded per file type) |
-| `.claude/skills/` | On-demand knowledge (UX laws, React standards, agent team) |
-| `.claude/hooks/` | Lifecycle automation |
-| `.claude/commands/` | Custom slash commands |
+| `REFERENCE.md`        | Codebase file index — read before exploring                  |
+| `docs/decisions/`     | One file per decision + `index.md` compact table             |
+| `docs/research/`      | One file per research session + `index.md` compact table     |
+| `docs/flow/`          | One file per user flow + `index.md` overview                 |
+| `.claude/agents/`     | Subagent definitions                                         |
+| `.claude/rules/`      | Path-scoped rules (auto-loaded per file type)                |
+| `.claude/skills/`     | On-demand knowledge (UX laws, React standards, agent team)   |
+| `.claude/hooks/`      | Lifecycle automation                                         |
+| `.claude/commands/`   | Custom slash commands                                        |

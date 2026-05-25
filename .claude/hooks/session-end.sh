@@ -44,9 +44,10 @@ if [[ -f "$LOG_FILE" ]] && command -v jq >/dev/null 2>&1; then
   START_TS=$(jq -r 'select(.event == "session_start") | .ts' "$LOG_FILE" 2>/dev/null | head -1)
   DURATION="unknown"
   if [[ -n "$START_TS" ]]; then
-    START_EPOCH=$(python3 -c "
+    START_EPOCH=$(printf '%s' "$START_TS" | python3 -c "
+import sys
 from datetime import datetime
-ts = '$START_TS'
+ts = sys.stdin.read().strip()
 try:
     dt = datetime.fromisoformat(ts)
     print(int(dt.timestamp()))

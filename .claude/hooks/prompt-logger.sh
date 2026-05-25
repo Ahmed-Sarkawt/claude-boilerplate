@@ -11,12 +11,10 @@ PROMPT=$(echo "$INPUT" | jq -r '.prompt // ""' 2>/dev/null || echo "")
 [[ -z "$PROMPT" ]] && exit 0
 
 CHAR_COUNT=${#PROMPT}
-SNIPPET=$(echo "$PROMPT" | head -c 300 | tr '\n' ' ')
 
 DATA=$(jq -n \
-  --arg     snippet "$SNIPPET" \
-  --argjson chars   "$CHAR_COUNT" \
-  '{prompt_snippet: $snippet, char_count: $chars}' \
+  --argjson chars "$CHAR_COUNT" \
+  '{char_count: $chars}' \
   2>/dev/null) || DATA="{\"char_count\":${CHAR_COUNT}}"
 
 bash .claude/hooks/session-logger.sh "user_prompt" "$DATA" 2>/dev/null || true

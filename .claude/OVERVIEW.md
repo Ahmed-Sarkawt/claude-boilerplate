@@ -62,13 +62,13 @@ You don't need to trigger these — they fire on their own.
 
 ## Slash commands
 
-| Command        | Invokes                                       | When to use                                                        |
-| -------------- | --------------------------------------------- | ------------------------------------------------------------------ |
-| `/review`      | `code-reviewer` → `bug-fixer` → `test-writer` | After writing code                                                 |
-| `/research`    | `researcher`                                  | Knowledge gap, or any question neither you nor the user can answer |
-| `/audit-ux`    | `ux-auditor`                                  | After any UI work (secondary — on demand)                          |
-| `/session-log` | Claude reads JSONL logs                       | Analyze cost, tokens, agents, repeated patterns                    |
-| `/init`        | Setup wizard                                  | Reconfigure paths, test runner, rules                              |
+| Command        | Invokes                                                 | When to use                                                        |
+| -------------- | ------------------------------------------------------- | ------------------------------------------------------------------ |
+| `/review`      | `code-reviewer` → `bug-fixer` → `test-writer` → `judge` | After writing code                                                 |
+| `/research`    | `researcher`                                            | Knowledge gap, or any question neither you nor the user can answer |
+| `/audit-ux`    | `ux-auditor`                                            | After any UI work (secondary — on demand)                          |
+| `/session-log` | Claude reads JSONL logs                                 | Analyze cost, tokens, agents, repeated patterns                    |
+| `/init`        | Setup wizard                                            | Reconfigure paths, test runner, rules                              |
 
 ## Agent sub-invocation rules
 
@@ -81,7 +81,7 @@ These agents can invoke `researcher` as a sub-agent:
 
 These agents invoke nobody:
 
-- `research-executor`, `bug-fixer`, `test-writer`, `doc-updater`
+- `research-executor`, `bug-fixer`, `test-writer`, `doc-updater`, `judge`
 
 ## Shared state files (never delete these)
 
@@ -91,6 +91,10 @@ These agents invoke nobody:
 | `docs/decisions/index.md` + `docs/decisions/*.md` | `doc-updater`, user               | session-start hook, all agents         |
 | `docs/flow/index.md` + `docs/flow/*.md`           | `doc-updater`, user               | `test-writer`, `doc-updater`           |
 | `.claude/.review-queue.txt`                       | `trigger-code-review.sh`          | `/review` (cleared at start of review) |
+| `.claude/.review-queue-meta.jsonl`                | `trigger-code-review.sh`          | `code-reviewer` (rich edit context)    |
+| `.claude/.review-queue-active.txt`                | `/review` command                 | `/review`, `session-start.sh`          |
+| `.claude/findings/<path>.md`                      | `code-reviewer`                   | `bug-fixer`, `test-writer`, `judge`    |
+| `.claude/findings/bug-fixer-summary.md`           | `bug-fixer`                       | `judge`                                |
 | `.claude/.current-session-id`                     | `session-start.sh`                | All logger hooks                       |
 | `.claude/logs/sessions/<id>.jsonl`                | All hooks via `session-logger.sh` | `/session-log`, `session-end.sh`       |
 | `.claude/logs/session-summary.md`                 | `session-end.sh`                  | `/session-log`, user                   |

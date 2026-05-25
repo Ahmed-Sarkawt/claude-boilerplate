@@ -76,6 +76,7 @@ The main quality loop. Run it after writing code:
   → code-reviewer    scans for bugs, a11y issues, security, TS errors
   → bug-fixer        applies all Auto-fixable findings automatically
   → test-writer      writes failing tests for every reviewed file
+  → judge            independently verifies fixes applied and tests pass
 ```
 
 Files are queued automatically by `trigger-code-review.sh` every time you save. **Crash-safe:** if Claude closes mid-review, the next session detects the interrupted state and warns you immediately so nothing slips through.
@@ -119,6 +120,7 @@ Every session produces `.claude/logs/sessions/<id>.jsonl` with events: prompts, 
 | `researcher`        | Auto when stuck, or `/research` | sonnet | medium |
 | `research-executor` | Auto — invoked by researcher    | haiku  | low    |
 | `test-writer`       | Auto — end of `/review`         | sonnet | medium |
+| `judge`             | Auto — final gate of `/review`  | sonnet | medium |
 | `ux-auditor`        | `/audit-ux` — secondary         | sonnet | medium |
 | `doc-updater`       | Manual — secondary              | haiku  | low    |
 

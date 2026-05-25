@@ -8,7 +8,7 @@ user-invocable: false
 
 # Agent Team Map
 
-This boilerplate has 7 primary agents + 1 execution sub-agent. Claude is the orchestrator.
+This boilerplate has 8 primary agents + 1 execution sub-agent. Claude is the orchestrator.
 
 ## The graph
 
@@ -24,8 +24,11 @@ Claude (orchestrator)
 ├─── bug-fixer               Auto-fix queue from code-reviewer (/review pipeline)
 │    (no sub-agents)         Mechanical only — never invokes others
 │
-├─── test-writer             Writes tests after /review pipeline completes
+├─── test-writer             Writes tests after bug-fixer in /review pipeline
 │    (no sub-agents)         Focused task — never invokes others
+│
+├─── judge                   Final gate of /review — invoked after test-writer
+│    (no sub-agents)         Read-only: verifies fixes applied, lint/typecheck/tests pass
 │
 ├─── ux-auditor              UX + a11y audit — secondary, via /audit-ux
 │    └── researcher          Verify UX claims or current accessibility guidance
@@ -36,56 +39,65 @@ Claude (orchestrator)
 
 ## When to invoke each agent
 
-| Signal | Agent to invoke |
-|--------|----------------|
-| You hit a knowledge gap or the user doesn't know | `researcher` (auto or `/research`) |
-| File was written or edited | `code-reviewer` (via `/review`) |
-| code-reviewer found auto-fixable issues | `bug-fixer` (part of `/review` pipeline) |
-| /review pipeline complete | `test-writer` (automatic — last step of `/review`) |
-| UI feature built or modified | `ux-auditor` (`/audit-ux` — secondary) |
-| Route or API contract changed | `doc-updater` (manual) |
+| Signal                                           | Agent to invoke                                 |
+| ------------------------------------------------ | ----------------------------------------------- |
+| You hit a knowledge gap or the user doesn't know | `researcher` (auto or `/research`)              |
+| File was written or edited                       | `code-reviewer` (via `/review`)                 |
+| code-reviewer found auto-fixable issues          | `bug-fixer` (part of `/review` pipeline)        |
+| /review pipeline complete (bug-fixer done)       | `test-writer` (automatic — step 5 of `/review`) |
+| After test-writer in /review                     | `judge` (automatic — final gate, step 6)        |
+| UI feature built or modified                     | `ux-auditor` (`/audit-ux` — secondary)          |
+| Route or API contract changed                    | `doc-updater` (manual)                          |
 
 ## Recommended chains by task type
 
 ### New feature
+
 ```
-[implement] → /review (code-reviewer → bug-fixer → test-writer)
+[implement] → /review (code-reviewer → bug-fixer → test-writer → judge)
 ```
 
 ### Bug fix
+
 ```
-researcher (if cause unclear) → [fix] → /review (code-reviewer → bug-fixer)
+researcher (if cause unclear) → [fix] → /review (code-reviewer → bug-fixer → judge)
 ```
 
 ### UI work
+
 ```
 [implement] → /review → /audit-ux (optional, secondary)
 ```
 
 ### Unknown library integration
+
 ```
 researcher → [implement] → /review
 ```
 
 ## Cost guidance
 
-| Task size | Agents to run |
-|-----------|--------------|
-| One-liner fix | code-reviewer only |
-| Small component | `/review` (code-reviewer → bug-fixer → test-writer) |
-| New feature | `/review` + researcher if needed |
-| UI-heavy feature | `/review` + `/audit-ux` |
+| Task size        | Agents to run                                               |
+| ---------------- | ----------------------------------------------------------- |
+| One-liner fix    | code-reviewer only                                          |
+| Small component  | `/review` (code-reviewer → bug-fixer → test-writer → judge) |
+| New feature      | `/review` + researcher if needed                            |
+| UI-heavy feature | `/review` + `/audit-ux`                                     |
 
 ## Shared state between agents
 
-| File | Written by | Read by |
-|------|-----------|---------|
-| `docs/research/index.md` + `docs/research/*.md` | researcher | session-start hook, all agents |
-| `docs/decisions/index.md` + `docs/decisions/*.md` | doc-updater, user | session-start hook, all agents |
-| `docs/flow/index.md` + `docs/flow/*.md` | doc-updater, user | test-writer, doc-updater |
-| `.claude/.review-queue.txt` | trigger-code-review hook | code-reviewer, /review command |
-| `REFERENCE.md` | user (maintained manually) | researcher, all agents |
-| `.claude/logs/sessions.log` | session-end hook | (audit only) |
+| File                                              | Written by                 | Read by                           |
+| ------------------------------------------------- | -------------------------- | --------------------------------- |
+| `docs/research/index.md` + `docs/research/*.md`   | researcher                 | session-start hook, all agents    |
+| `docs/decisions/index.md` + `docs/decisions/*.md` | doc-updater, user          | session-start hook, all agents    |
+| `docs/flow/index.md` + `docs/flow/*.md`           | doc-updater, user          | test-writer, doc-updater          |
+| `.claude/.review-queue.txt`                       | trigger-code-review hook   | code-reviewer, /review command    |
+| `.claude/.review-queue-meta.jsonl`                | trigger-code-review hook   | code-reviewer (rich edit context) |
+| `.claude/.review-queue-active.txt`                | /review command            | /review, session-start hook       |
+| `.claude/findings/<path>.md`                      | code-reviewer              | bug-fixer, test-writer, judge     |
+| `.claude/findings/bug-fixer-summary.md`           | bug-fixer                  | judge                             |
+| `REFERENCE.md`                                    | user (maintained manually) | researcher, all agents            |
+| `.claude/logs/sessions.log`                       | session-end hook           | (audit only)                      |
 
 ## Rules for agent authors
 

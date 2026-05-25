@@ -26,6 +26,9 @@ case "$SUBAGENT_NAME" in
   test-writer)
     echo "🧪 Test-writer done. Run npm test — expect failures until implementation catches up."
     ;;
+  judge)
+    echo "⚖️  Judge verdict above. On PASS: review is complete. On FAIL: resolve the listed failures before merging."
+    ;;
   ux-auditor)
     echo "🎨 UX audit complete. Run /audit-ux on another component, or /review to queue fixes."
     ;;

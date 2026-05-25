@@ -11,9 +11,18 @@ The user will call this as:
 /feedback <agent-name> "<what the agent should do differently>"
 ```
 
-If either part is missing, ask:
-1. "Which agent needs the correction?" — valid values: `code-reviewer`, `bug-fixer`, `test-writer`, `researcher`, `ux-auditor`, `doc-updater`
-2. "What should it do differently? Be specific — this becomes a permanent rule."
+If the agent name is missing, check the session log before asking:
+
+```bash
+SESSION_ID=$(cat .claude/.current-session-id 2>/dev/null)
+jq -r 'select(.event == "agent_stop") | .data.agent' \
+  ".claude/logs/sessions/${SESSION_ID}.jsonl" 2>/dev/null | tail -1
+```
+
+If that returns a name, use it and tell the user: "Assuming this is for `<agent-name>` — the last agent this session. Correct me if not."
+If the log is empty or the command fails, ask: "Which agent needs the correction? Valid values: `code-reviewer`, `bug-fixer`, `test-writer`, `researcher`, `ux-auditor`, `doc-updater`"
+
+If the correction text is missing, ask: "What should it do differently? Be specific — this becomes a permanent rule."
 
 ## Writing the correction
 

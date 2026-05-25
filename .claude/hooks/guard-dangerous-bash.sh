@@ -8,12 +8,16 @@ set -uo pipefail
 INPUT=$(cat)
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "🔴 SECURITY: jq not installed — guard-dangerous-bash cannot run." >&2
-  echo "Install immediately: brew install jq (macOS) or apt install jq (Linux)" >&2
-  exit 0
+  echo "🔴 SECURITY: jq not installed — all safety guards are disabled. Install immediately: brew install jq (macOS) or apt install jq (Linux)" >&2
+  exit 2
 fi
 
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null)
+# Block on jq parse failure — an empty COMMAND would silently allow everything through
+if [[ $? -ne 0 ]]; then
+  echo "Blocked: failed to parse hook input JSON" >&2
+  exit 2
+fi
 
 # Patterns checked with grep -iqE (case-insensitive extended regex).
 # rm: catch all recursive variants (-r, -rf, -fR, -Rf, --recursive) not just -rf.
@@ -52,10 +56,10 @@ for pattern in "${BLOCKED_PATTERNS[@]}"; do
   fi
 done
 
-# Block push to main/master without explicit override
+# Block push to main/master without explicit override via env var
 if echo "$COMMAND" | grep -iqE 'git[[:space:]]+push.*[[:space:]]+(main|master)' 2>/dev/null; then
-  if ! echo "$COMMAND" | grep -q 'ALLOW_PUSH_MAIN' 2>/dev/null; then
-    block_command "direct push to main/master (set ALLOW_PUSH_MAIN=1 to override)"
+  if [[ "${ALLOW_PUSH_MAIN:-0}" != "1" ]]; then
+    block_command "direct push to main/master (export ALLOW_PUSH_MAIN=1 to override)"
   fi
 fi
 

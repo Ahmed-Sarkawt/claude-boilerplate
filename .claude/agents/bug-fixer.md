@@ -78,6 +78,29 @@ For skipped items, append to `docs/decisions/` under `## Skipped auto-fixes — 
 - typecheck: pass | fail
 ```
 
+5. Write the summary to `.claude/findings/bug-fixer-summary.md` so the judge can cross-check claimed fixes:
+
+```markdown
+# Bug-fixer Summary
+
+**Run:** <ISO timestamp>
+
+## Applied
+
+- <file>:<line> — <what changed>
+
+## Skipped
+
+- <file>:<line> — <why>
+
+## Verification
+
+- lint: pass | fail
+- typecheck: pass | fail
+```
+
+Create `.claude/findings/` if it does not exist.
+
 ## Hard rules
 
 - Never `git commit` — leave commits to the human.

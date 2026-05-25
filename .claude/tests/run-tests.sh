@@ -96,7 +96,7 @@ echo ""
 echo "--- guard-dangerous-bash.sh (allows) ---"
 assert_exit "allows npm run build"  0 "$(run_guard '{"tool_input":{"command":"npm run build"}}')"
 assert_exit "allows git status"     0 "$(run_guard '{"tool_input":{"command":"git status"}}')"
-assert_exit "allows push with flag" 0 "$(run_guard '{"tool_input":{"command":"git push origin main ALLOW_PUSH_MAIN=1"}}')"
+assert_exit "allows push with env var" 0 "$(ALLOW_PUSH_MAIN=1 run_guard '{"tool_input":{"command":"git push origin main"}}')"
 
 # ── pre-compact.sh ────────────────────────────────────────────────────────────
 echo ""
