@@ -6,3 +6,5 @@
 
 | Date | Topic | Confidence | File |
 |------|-------|------------|------|
+| 2026-05-17 | Claude Code Native Memory and Context Mechanisms | High | [2026-05-17_claude-code-memory-context-mechanisms.md](2026-05-17_claude-code-memory-context-mechanisms.md) |
+| 2026-05-25 | Claude Code Experimental Agent Team Architecture and Improvement Patterns | High | [2026-05-25_claude-code-agent-team-improvements.md](2026-05-25_claude-code-agent-team-improvements.md) |

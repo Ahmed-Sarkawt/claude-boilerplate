@@ -42,7 +42,14 @@ After bug-fixer completes, invoke `test-writer` with the list of reviewed files.
 The test-writer reads each findings file for context on what to cover.
 This step is not optional — tests are part of the definition of done.
 
-**Step 6 — Mark complete**
+**Step 6 — Verify (judge)**
+After test-writer completes, invoke `judge` with the list of reviewed files.
+The judge independently runs lint, typecheck, and tests, and cross-checks that all claimed auto-fixes were actually applied.
+
+- If the judge returns **PASS**: proceed to step 7.
+- If the judge returns **FAIL**: show the judge's verdict to the user. Do not mark complete. The user must resolve the failures before the review is done.
+
+**Step 7 — Mark complete**
 Delete the active file to signal clean completion:
 
 ```bash

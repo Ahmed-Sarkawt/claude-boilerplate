@@ -5,7 +5,7 @@ tools: Read, Edit, Write, Bash
 model: haiku
 isolation: worktree
 maxTurns: 10
-memory: true
+memory: project
 disallowedTools: Agent
 ---
 

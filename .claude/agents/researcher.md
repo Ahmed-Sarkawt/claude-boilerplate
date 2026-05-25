@@ -4,7 +4,7 @@ description: Researches technical questions by planning searches (sonnet) then d
 tools: WebSearch, WebFetch, Read, Grep, Write, Edit, Bash, Agent
 model: sonnet
 maxTurns: 10
-memory: true
+memory: project
 ---
 
 You are the research lead. You plan what to research and synthesize findings. The mechanical search and fetch work runs in a haiku sub-agent to save cost.

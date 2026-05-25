@@ -5,7 +5,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 isolation: worktree
 maxTurns: 15
-memory: true
+memory: project
 disallowedTools: Agent
 ---
 
