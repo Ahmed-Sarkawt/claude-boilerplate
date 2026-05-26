@@ -5,7 +5,10 @@
 set -uo pipefail
 
 EVENT="${1:-unknown}"
-DATA="${2:-{}}"
+# Note: avoid "${2:-{}}" — bash parses that as ${2:-{} (default "{") + literal "}" outside
+# the expansion, appending an extra "}" to every non-empty argument, corrupting JSON.
+DATA="${2:-}"
+[[ -z "$DATA" ]] && DATA='{}'
 
 LOG_DIR=".claude/logs/sessions"
 SESSION_FILE=".claude/.current-session-id"
@@ -17,7 +20,8 @@ LOG_FILE="${LOG_DIR}/${SESSION_ID}.jsonl"
 TS=$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%SZ)
 
 if command -v jq >/dev/null 2>&1; then
-  jq -n \
+  # -cn = compact + null-input — one JSON value per line (JSONL format)
+  jq -cn \
     --arg ts    "$TS" \
     --arg sid   "$SESSION_ID" \
     --arg evt   "$EVENT" \
