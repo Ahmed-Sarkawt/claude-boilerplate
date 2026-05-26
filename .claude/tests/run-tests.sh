@@ -7,6 +7,26 @@ PASS=0
 FAIL=0
 SKIP=0
 
+# ── Trap cleanup — runs on exit, Ctrl-C, or error ────────────────────────────
+# Ensures test rows never persist in docs indexes, even on interrupted runs.
+_cleanup() {
+  # Remove any "Test Decision" rows from decisions index
+  if [[ -f "docs/decisions/index.md" ]]; then
+    grep -v "Test Decision" docs/decisions/index.md > docs/decisions/index.md.tmp \
+      && mv docs/decisions/index.md.tmp docs/decisions/index.md \
+      || rm -f docs/decisions/index.md.tmp
+  fi
+  # Remove any "Test Research Topic" rows from research index
+  if [[ -f "docs/research/index.md" ]]; then
+    grep -v "Test Research Topic" docs/research/index.md > docs/research/index.md.tmp \
+      && mv docs/research/index.md.tmp docs/research/index.md \
+      || rm -f docs/research/index.md.tmp
+  fi
+  # Remove temp decision/research files created by the test
+  rm -f docs/decisions/*test-decision* docs/research/*test-topic* 2>/dev/null || true
+}
+trap _cleanup EXIT
+
 GREEN='\033[32m' RED='\033[31m' YELLOW='\033[33m' RESET='\033[0m'
 
 pass() { echo -e "${GREEN}✅${RESET} $1"; (( PASS++ )); }
@@ -183,9 +203,7 @@ if [[ -d "docs/research" ]]; then
       fail "new-research.sh: index not updated"
     fi
     rm -f "$RESEARCH_FILE"
-    # Remove the test row from index (last line)
-    head -n -1 docs/research/index.md > docs/research/index.md.tmp \
-      && mv docs/research/index.md.tmp docs/research/index.md
+    # Index cleanup is handled by the EXIT trap
   else
     fail "new-research.sh: file not created"
   fi
@@ -203,8 +221,7 @@ if [[ -d "docs/decisions" ]]; then
       fail "new-decision.sh: title not in file"
     fi
     rm -f "$DECISION_FILE"
-    head -n -1 docs/decisions/index.md > docs/decisions/index.md.tmp \
-      && mv docs/decisions/index.md.tmp docs/decisions/index.md
+    # Index cleanup is handled by the EXIT trap
   else
     fail "new-decision.sh: file not created"
   fi
