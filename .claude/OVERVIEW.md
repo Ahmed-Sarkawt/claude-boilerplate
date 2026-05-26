@@ -83,6 +83,14 @@ These agents invoke nobody:
 
 - `research-executor`, `bug-fixer`, `test-writer`, `doc-updater`, `judge`
 
+## Agent Teams — confirmed constraints
+
+Agent Teams is enabled by default via `settings.json`. One confirmed limitation to be aware of:
+
+- **`TeammateIdle`, `TaskCompleted`, and `TaskCreated` hooks are TypeScript SDK only.** They cannot be wired as shell command hooks in `settings.json`. If you need a quality gate that blocks task completion until the judge passes, you must use the TypeScript Agent SDK — shell hooks cannot implement this.
+
+Everything else about Agent Teams (task list sharing, parallel worktrees, `TaskCreate`/`TaskUpdate`/`TaskGet` tools) works from the CLI as normal.
+
 ## Shared state files (never delete these)
 
 | File                                              | Who writes                        | Who reads                              |

@@ -5,4 +5,4 @@
 > Written by `doc-updater`. Never delete rows — mark status as Superseded if overturned.
 
 | Date | Decision | Status | File |
-|------|----------|--------|------|
+| ---- | -------- | ------ | ---- |
