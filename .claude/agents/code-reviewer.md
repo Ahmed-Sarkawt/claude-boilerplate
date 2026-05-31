@@ -22,13 +22,14 @@ Read `.claude/.review-queue-meta.jsonl` and find entries for this file:
 - Multiple entries for the same path → file was edited several times this session; check whether the changes are coherent.
 
 **2. Check for a previous findings file.**
-The findings file path is: `.claude/findings/<filepath with / replaced by __>.md`
-Example: `src/auth/service.ts` → `.claude/findings/src__auth__service.ts.md`
+The findings file path is: `.claude/findings/<filepath with / replaced by __>.json`
+Example: `src/auth/service.ts` → `.claude/findings/src__auth__service.ts.json`
 
 If the file exists, read it. Use it to:
 
 - Check whether previously flagged Block issues have been fixed. If the same issue recurs, escalate its severity and note it as a repeat.
 - Understand what the last reviewer found so you don't re-explain already-known context.
+- Each finding has a stable `id` (e.g. `"F001"`). When a repeat occurs, reference the original `id` and increment from the highest existing `id` for new findings.
 
 **3. Check project-specific corrections.**
 Read `.claude/memory/agent-corrections.md` and find entries under `## code-reviewer`.
@@ -204,33 +205,83 @@ If researcher was invoked, append:
 
 ## After reviewing
 
-Write the full findings to a file so bug-fixer and test-writer can access them without depending on the parent agent holding them in memory.
+Write findings to a JSON file so bug-fixer, test-writer, and judge can parse them precisely without relying on prose formatting.
 
-**Path:** replace every `/` in the reviewed filepath with `__`, then write to `.claude/findings/<result>.md`
-Example: `src/auth/service.ts` → `.claude/findings/src__auth__service.ts.md`
+**Path:** replace every `/` in the reviewed filepath with `__`, then write to `.claude/findings/<result>.json`
+Example: `src/auth/service.ts` → `.claude/findings/src__auth__service.ts.json`
 
-Use this exact template:
+**Schema — clean file:**
 
-```markdown
-# Findings: <filepath>
-
-**Reviewed:** <ISO timestamp>
-**Verdict:** <Clean | Needs fixes>
-
-## Auto-fix queue
-
-<copy the full Auto-fix queue section here — every finding tagged Auto-fixable: yes>
-
-## Block findings (manual fix required)
-
-<every 🔴 BLOCK finding tagged Auto-fixable: no>
-
-## Full report
-
-<paste the complete structured output>
+```json
+{
+  "schema_version": "1",
+  "file": "<filepath>",
+  "reviewed_at": "<ISO 8601 timestamp>",
+  "verdict": "clean",
+  "findings": [],
+  "summary": {
+    "total": 0,
+    "block": 0,
+    "recommend": 0,
+    "note": 0,
+    "auto_fixable": 0,
+    "manual_required": 0
+  }
+}
 ```
 
-If everything is clean, write the file anyway with `**Verdict:** Clean` and an empty Auto-fix queue. This tells downstream agents the file was reviewed and cleared — not just unreviewed.
+**Schema — file with findings:**
+
+```json
+{
+  "schema_version": "1",
+  "file": "src/auth/service.ts",
+  "reviewed_at": "2026-05-31T10:00:00Z",
+  "verdict": "needs_fixes",
+  "findings": [
+    {
+      "id": "F001",
+      "severity": "block",
+      "category": "security",
+      "line": 42,
+      "title": "SQL injection via string interpolation",
+      "description": "User input is interpolated directly into the SQL query string at line 42",
+      "fix": "Use a parameterized query: db.query('SELECT * FROM users WHERE id = $1', [userId])",
+      "auto_fixable": false
+    },
+    {
+      "id": "F002",
+      "severity": "recommend",
+      "category": "typescript",
+      "line": 18,
+      "title": "@ts-ignore should be @ts-expect-error",
+      "description": "@ts-ignore silently suppresses all errors; @ts-expect-error fails loudly if no error exists, keeping suppressions auditable",
+      "fix": "Replace // @ts-ignore with // @ts-expect-error: <reason>",
+      "auto_fixable": true
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "block": 1,
+    "recommend": 1,
+    "note": 0,
+    "auto_fixable": 1,
+    "manual_required": 1
+  }
+}
+```
+
+**Field reference:**
+
+| Field          | Values                                                                                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `verdict`      | `"clean"` \| `"needs_fixes"`                                                                                          |
+| `severity`     | `"block"` \| `"recommend"` \| `"note"`                                                                                |
+| `category`     | `"security"` \| `"typescript"` \| `"react"` \| `"accessibility"` \| `"performance"` \| `"code-health"` \| `"backend"` |
+| `auto_fixable` | `true` if the fix is safe, mechanical, and in the bug-fixer allow-list — `false` otherwise                            |
+| `id`           | Sequential starting at `F001`. If a previous findings file exists, increment from the highest existing `id`.          |
+
+**Always write the file, even when clean.** A missing file is ambiguous (not reviewed vs. reviewed clean). A file with `"verdict": "clean"` and `"findings": []` is unambiguous.
 
 Create the `.claude/findings/` directory if it does not exist.
 

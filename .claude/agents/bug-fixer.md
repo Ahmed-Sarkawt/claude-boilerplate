@@ -21,16 +21,17 @@ they exist because a default behaviour was wrong for this codebase.
 
 You receive a list of files to fix. For each file, get the auto-fixable findings from **the findings file first**, falling back to whatever the parent agent passed in the task prompt.
 
-**Findings file path:** replace every `/` in the filepath with `__` → `.claude/findings/<result>.md`
-Example: `src/auth/service.ts` → `.claude/findings/src__auth__service.ts.md`
+**Findings file path:** replace every `/` in the filepath with `__` → `.claude/findings/<result>.json`
+Example: `src/auth/service.ts` → `.claude/findings/src__auth__service.ts.json`
 
-Read the `## Auto-fix queue` section of that file. This is the authoritative source — it survives compaction and parallel pipeline runs. If the file does not exist, use the findings passed in the task prompt.
+Parse the JSON and filter for entries in `findings` where `"auto_fixable": true`. These are your work queue — the authoritative source that survives compaction and parallel pipeline runs. If the file does not exist, use the findings passed in the task prompt.
 
 Each finding has:
 
-- File path and line number
-- The issue
-- The suggested fix
+- `file` and `line` — where to apply the fix
+- `title` — what the issue is
+- `fix` — the concrete action to take
+- `id` — stable identifier used in the summary (e.g. `"F002"`)
 
 ## What you may fix (allow-list)
 
@@ -52,7 +53,7 @@ Skip and leave a comment for human review:
 - Logic changes (anything altering runtime behavior beyond the stated issue)
 - Adding test cases
 - Renaming public APIs, exported symbols, route paths, or DB columns
-- Anything tagged `Auto-fixable: no`
+- Anything with `"auto_fixable": false` in the findings file
 - Anything where the suggested fix is ambiguous
 
 For skipped items, append to `docs/decisions/` under `## Skipped auto-fixes — <date>` with: file, line, reason.
@@ -78,26 +79,44 @@ For skipped items, append to `docs/decisions/` under `## Skipped auto-fixes — 
 - typecheck: pass | fail
 ```
 
-5. Write the summary to `.claude/findings/bug-fixer-summary.md` so the judge can cross-check claimed fixes:
+5. Write the summary to `.claude/findings/bug-fixer-summary.json` so the judge can cross-check by finding ID:
 
-```markdown
-# Bug-fixer Summary
-
-**Run:** <ISO timestamp>
-
-## Applied
-
-- <file>:<line> — <what changed>
-
-## Skipped
-
-- <file>:<line> — <why>
-
-## Verification
-
-- lint: pass | fail
-- typecheck: pass | fail
+```json
+{
+  "schema_version": "1",
+  "run_at": "<ISO 8601 timestamp>",
+  "status": "complete",
+  "files": [
+    {
+      "file": "src/auth/service.ts",
+      "applied": [
+        {
+          "id": "F002",
+          "line": 18,
+          "description": "Replaced @ts-ignore with @ts-expect-error: legacy SDK type mismatch"
+        }
+      ],
+      "skipped": [
+        {
+          "id": "F003",
+          "line": 27,
+          "reason": "Fix description is ambiguous — requires logic change"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "lint": "pass",
+    "typecheck": "pass"
+  },
+  "totals": {
+    "applied": 1,
+    "skipped": 1
+  }
+}
 ```
+
+Use `"pass"` or `"fail"` for verification fields. If a command is not configured in the project, use `"not_configured"`.
 
 Create `.claude/findings/` if it does not exist.
 

@@ -101,8 +101,8 @@ Everything else about Agent Teams (task list sharing, parallel worktrees, `TaskC
 | `.claude/.review-queue.txt`                       | `trigger-code-review.sh`          | `/review` (cleared at start of review) |
 | `.claude/.review-queue-meta.jsonl`                | `trigger-code-review.sh`          | `code-reviewer` (rich edit context)    |
 | `.claude/.review-queue-active.txt`                | `/review` command                 | `/review`, `session-start.sh`          |
-| `.claude/findings/<path>.md`                      | `code-reviewer`                   | `bug-fixer`, `test-writer`, `judge`    |
-| `.claude/findings/bug-fixer-summary.md`           | `bug-fixer`                       | `judge`                                |
+| `.claude/findings/<path>.json`                    | `code-reviewer`                   | `bug-fixer`, `test-writer`, `judge`    |
+| `.claude/findings/bug-fixer-summary.json`         | `bug-fixer`                       | `judge`                                |
 | `.claude/.current-session-id`                     | `session-start.sh`                | All logger hooks                       |
 | `.claude/logs/sessions/<id>.jsonl`                | All hooks via `session-logger.sh` | `/session-log`, `session-end.sh`       |
 | `.claude/logs/session-summary.md`                 | `session-end.sh`                  | `/session-log`, user                   |

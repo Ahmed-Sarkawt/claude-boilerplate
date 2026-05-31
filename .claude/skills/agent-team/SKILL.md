@@ -94,8 +94,8 @@ researcher → [implement] → /review
 | `.claude/.review-queue.txt`                       | trigger-code-review hook   | code-reviewer, /review command    |
 | `.claude/.review-queue-meta.jsonl`                | trigger-code-review hook   | code-reviewer (rich edit context) |
 | `.claude/.review-queue-active.txt`                | /review command            | /review, session-start hook       |
-| `.claude/findings/<path>.md`                      | code-reviewer              | bug-fixer, test-writer, judge     |
-| `.claude/findings/bug-fixer-summary.md`           | bug-fixer                  | judge                             |
+| `.claude/findings/<path>.json`                    | code-reviewer              | bug-fixer, test-writer, judge     |
+| `.claude/findings/bug-fixer-summary.json`         | bug-fixer                  | judge                             |
 | `REFERENCE.md`                                    | user (maintained manually) | researcher, all agents            |
 | `.claude/logs/sessions.log`                       | session-end hook           | (audit only)                      |
 

@@ -19,9 +19,9 @@ You do not fix anything. You do not suggest improvements. You confirm or deny.
 You receive a list of reviewed files. For each file:
 
 **1. Read the findings file.**
-Path: replace every `/` in the filepath with `__` → `.claude/findings/<result>.md`
+Path: replace every `/` in the filepath with `__` → `.claude/findings/<result>.json`
 
-Check the `## Auto-fix queue` section. For each item tagged `Auto-fixable: yes`, verify the fix was actually applied by reading the file at the specified line.
+Parse the JSON. Filter `findings` where `"auto_fixable": true`. For each, read the source file at the specified `line` and verify the fix described in `fix` is actually present.
 
 **2. Run the verification suite.**
 
@@ -34,7 +34,9 @@ npm test --silent 2>&1
 Run all three. Capture exit codes. A non-zero exit code is a failure regardless of output.
 
 **3. Cross-check the bug-fixer summary.**
-If `.claude/findings/bug-fixer-summary.md` exists, read it. Compare claimed applied fixes against what you observe in the files. A fix claimed as applied that isn't visible in the file is a lie — report it as a failure.
+If `.claude/findings/bug-fixer-summary.json` exists, read it. For each entry in `files[*].applied`, look up the finding by `id` in the findings JSON and verify the change is visible in the source file at the specified `line`. A finding `id` in `applied` whose fix is not visible in the file is a dishonest claim — report it as a failure.
+
+`files[*].skipped` entries must be untouched — verify they were not modified.
 
 ## Verdict
 
@@ -60,7 +62,7 @@ typecheck: pass | FAIL (<exit code, first error line>)
 tests: pass | FAIL (<exit code, first failure>)
 
 Unapplied fixes:
-- <file>:<line> — claimed fix not found
+- <finding id> (<file>:<line>) — claimed fix not found
 
 The pipeline must not proceed until these are resolved.
 ```

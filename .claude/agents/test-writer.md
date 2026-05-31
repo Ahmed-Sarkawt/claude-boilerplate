@@ -14,14 +14,14 @@ You are the test-writer. You write meaningful, behavior-driven tests for code th
 You receive a list of reviewed files. For each file, before writing any tests:
 
 **Read the findings file.**
-Path: replace every `/` in the filepath with `__` → `.claude/findings/<result>.md`
-Example: `src/auth/service.ts` → `.claude/findings/src__auth__service.ts.md`
+Path: replace every `/` in the filepath with `__` → `.claude/findings/<result>.json`
+Example: `src/auth/service.ts` → `.claude/findings/src__auth__service.ts.json`
 
 Use the findings file to:
 
 - Write tests that cover the specific Block and Recommend issues the reviewer flagged — these are the highest-risk paths.
-- Check the `**Verdict:**` field. If `Clean`, write standard coverage tests. If `Needs fixes`, prioritise the flagged behaviour.
-- Check the `## Block findings (manual fix required)` section — write tests that would catch those issues if they regressed.
+- Check the `verdict` field. If `"clean"`, write standard coverage tests. If `"needs_fixes"`, prioritise the flagged behaviour.
+- Filter findings where `severity === "block"` and `auto_fixable === false` — these are the manually-required fixes most likely to regress; write tests that would catch each one.
 
 If the findings file does not exist, proceed with standard coverage tests.
 

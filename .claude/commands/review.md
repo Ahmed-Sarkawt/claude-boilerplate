@@ -24,8 +24,8 @@ Read the file list from `.claude/.review-queue-active.txt`.
 For each file path:
 
 - Invoke the `code-reviewer` subagent.
-- The reviewer will write its findings to `.claude/findings/<path with / replaced by __>.md` automatically.
-- Collect all findings tagged `Auto-fixable: yes` into a running list (from the reviewer's response).
+- The reviewer will write its findings to `.claude/findings/<path with / replaced by __>.json` automatically.
+- Collect all findings where `auto_fixable` is `true` into a running list (from the reviewer's response).
 
 **Step 3 — Report**
 Show a summary: files reviewed, findings by severity (🔴/🟡/🟢), count of auto-fixable.
