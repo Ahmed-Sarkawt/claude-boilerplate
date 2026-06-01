@@ -30,6 +30,14 @@ if [[ -f "docs/research/index.md" ]]; then
   RECENT_RESEARCH=$(tail -n 8 "docs/research/index.md" 2>/dev/null | head -c 400 || echo "")
 fi
 
+# ── Memory ───────────────────────────────────────────────────────────────────
+# Inject the first 150 lines of MEMORY.md so context survives session clears.
+# 150 lines keeps it well under the 200-line total cap for the whole file.
+MEMORY_CONTENT=""
+if [[ -f ".claude/memory/MEMORY.md" ]]; then
+  MEMORY_CONTENT=$(head -n 150 ".claude/memory/MEMORY.md" 2>/dev/null | head -c 2000 || echo "")
+fi
+
 # ── FILL IN detector ──────────────────────────────────────────────────────────
 SETUP_WARNING=""
 if grep -q "FILL IN:" CLAUDE.md 2>/dev/null; then
@@ -37,7 +45,7 @@ if grep -q "FILL IN:" CLAUDE.md 2>/dev/null; then
 fi
 
 ORIENTATION="When stuck: (1) docs/research/index.md (2) docs/decisions/index.md (3) REFERENCE.md (4) invoke researcher. Ask user only as last resort."
-CONTEXT="${AGENT_MAP} | Branch: ${BRANCH}${SETUP_WARNING}${INTERRUPTED_REVIEW} | ${ORIENTATION} | Recent decisions: ${RECENT_DECISIONS} | Recent research: ${RECENT_RESEARCH}"
+CONTEXT="${AGENT_MAP} | Branch: ${BRANCH}${SETUP_WARNING}${INTERRUPTED_REVIEW} | ${ORIENTATION} | Recent decisions: ${RECENT_DECISIONS} | Recent research: ${RECENT_RESEARCH} | MEMORY: ${MEMORY_CONTENT}"
 
 # ── Log session start ─────────────────────────────────────────────────────────
 if command -v jq >/dev/null 2>&1; then
