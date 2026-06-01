@@ -75,6 +75,22 @@ researcher (if cause unclear) → [fix] → /review (code-reviewer → bug-fixer
 researcher → [implement] → /review
 ```
 
+## Workflow alternatives
+
+Reach for a workflow (`.claude/workflows/`) instead of a slash command chain when **any** of these apply:
+
+- You need two or more agents running **in parallel** (independent concerns, no data dependency between them).
+- There is a **barrier** — a discovery phase whose output determines what the next phase fans out over.
+- Intermediate results should **not** occupy Claude's context window between phases.
+
+| Workflow          | Replaces                                 | When to switch                                                              |
+| ----------------- | ---------------------------------------- | --------------------------------------------------------------------------- |
+| `parallel-review` | `/review`                                | Queue depth > 3 files — `parallel()` makes all reviews simultaneous         |
+| `full-audit`      | `/review` + `/audit-ux` run back-to-back | Before a release — three independent audit dimensions run concurrently      |
+| `research-sweep`  | Manual `/research` calls                 | Topic needs coverage across docs, security, performance, and recent changes |
+
+Invoke: `Workflow({ name: "parallel-review" })` or `/workflow parallel-review`
+
 ## Cost guidance
 
 | Task size        | Agents to run                                               |

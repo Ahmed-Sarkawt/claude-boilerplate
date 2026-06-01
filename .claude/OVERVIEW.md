@@ -70,6 +70,18 @@ You don't need to trigger these — they fire on their own.
 | `/session-log` | Claude reads JSONL logs                                 | Analyze cost, tokens, agents, repeated patterns                    |
 | `/init`        | Setup wizard                                            | Reconfigure paths, test runner, rules                              |
 
+## Workflows
+
+Workflows are deterministic JS scripts that fan out agents in parallel and hold intermediate results outside Claude's context window. Any `.js` file in `.claude/workflows/` auto-registers by name.
+
+| Workflow          | Trigger                               | When to use                                                                                                 |
+| ----------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `parallel-review` | `/workflow parallel-review`           | Queue has > 3 files — fans out one `code-reviewer` per file simultaneously, then fix → test → judge         |
+| `full-audit`      | `/workflow full-audit`                | Before a release — runs code review, UX audit, and dependency scan in parallel, synthesizes a ranked report |
+| `research-sweep`  | `/workflow research-sweep <question>` | Deep research — 4 parallel angles (docs, security, performance, recent changes), saved to `docs/research/`  |
+
+**Workflow vs. slash command:** Use a workflow when you need parallel fan-out, a discover-then-fan-out barrier, or intermediate results that should not fill Claude's context window. See `.claude/workflows/README.md` for the runtime primitive quick-ref and template.
+
 ## Agent sub-invocation rules
 
 These agents can invoke `researcher` as a sub-agent:
