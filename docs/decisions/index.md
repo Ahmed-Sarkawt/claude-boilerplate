@@ -6,3 +6,4 @@
 
 | Date | Decision | Status | File |
 | ---- | -------- | ------ | ---- |
+| 2026-06-10 | Migrate Slash Commands into Skills | Active | [2026-06-10_migrate-commands-to-skills.md](2026-06-10_migrate-commands-to-skills.md) |

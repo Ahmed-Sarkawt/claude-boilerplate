@@ -1,5 +1,7 @@
 ---
+name: session-log
 description: Analyze session logs — view activity, estimated costs, token usage, agents invoked, files changed, and repeated patterns. Use after any session to understand what happened, or across sessions to find inefficiencies.
+disable-model-invocation: true
 ---
 
 ## Quick summary

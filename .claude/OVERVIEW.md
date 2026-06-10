@@ -41,7 +41,7 @@ Never skip to step 5. The researcher exists precisely so the user doesn't have t
 | User flows                                        | `docs/flow/index.md` → then read the linked file        |
 | Agent definitions                                 | `.claude/agents/<name>.md`                              |
 | Path-scoped coding rules                          | `.claude/rules/frontend.md`, `backend.md`, `testing.md` |
-| Custom slash command definitions                  | `.claude/commands/<name>.md`                            |
+| Custom slash command definitions                  | `.claude/skills/<name>/SKILL.md`                        |
 | UX laws with application guidance                 | `.claude/skills/laws-of-ux/SKILL.md`                    |
 | Full agent graph and recommended chains           | `.claude/skills/agent-team/SKILL.md`                    |
 | Claude Code hooks, settings, patterns reference   | `claude-code-research.md`                               |

@@ -1,5 +1,7 @@
 ---
+name: workflow
 description: Run a named workflow — deterministic multi-agent orchestration with parallel fan-out. Usage: /workflow <name> [args]
+disable-model-invocation: true
 ---
 
 Read the workflow name from `$ARGUMENTS` (the first word). Everything after the name is the args value.

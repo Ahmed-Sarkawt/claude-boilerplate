@@ -1,5 +1,7 @@
 ---
+name: feedback
 description: Record a correction for a specific agent. Use after any agent output you want to change — the agent will apply this rule from its next invocation onwards.
+disable-model-invocation: true
 ---
 
 Record a correction so the named agent learns from this session's mistake.

@@ -22,7 +22,7 @@
 | `.claude/workflows/parallel-review.js` | Fan-out code-reviewer per queued file simultaneously, then sequential bug-fixer → test-writer → judge    |
 | `.claude/workflows/full-audit.js`      | Parallel code review + UX audit + dependency scan; synthesizes a ranked findings report                  |
 | `.claude/workflows/research-sweep.js`  | 4-angle parallel research (docs, security, performance, recent); synthesized and saved to docs/research/ |
-| `.claude/commands/workflow.md`         | /workflow slash command — invokes any named workflow by name                                             |
+| `.claude/skills/workflow/SKILL.md`     | /workflow slash command — invokes any named workflow by name                                             |
 | `.claude/.current-session-id`          | Active session ID — written by session-start, read by all loggers                                        |
 | `.claude/.review-queue.txt`            | Files queued for /review — cleared at start of each review run                                           |
 | `.claude/logs/sessions/<id>.jsonl`     | Structured event log for one session (JSONL, one event per line)                                         |

@@ -1,5 +1,7 @@
 ---
+name: init
 description: Initialize or update project-specific Claude configuration — covers all 11 setup options conversationally. Works as both first-time setup and an update wizard.
+disable-model-invocation: true
 ---
 
 You are running the setup wizard for this claude-boilerplate project. Ask each question conversationally, wait for the answer, apply the change immediately, then move to the next step. Do not batch — apply each change as you go so the user can see progress.

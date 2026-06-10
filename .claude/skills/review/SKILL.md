@@ -1,4 +1,5 @@
 ---
+name: review
 description: Process the code review queue — invoke code-reviewer, apply auto-fixes with bug-fixer, then automatically write tests for the reviewed files. Crash-safe — interrupted reviews are detected on next session start.
 ---
 

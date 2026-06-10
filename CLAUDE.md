@@ -104,6 +104,5 @@ Strong success criteria enable independent looping. Weak criteria ("make it work
 | `docs/flow/`          | One file per user flow + `index.md` overview                 |
 | `.claude/agents/`     | Subagent definitions                                         |
 | `.claude/rules/`      | Path-scoped rules (auto-loaded per file type)                |
-| `.claude/skills/`     | On-demand knowledge (UX laws, React standards, agent team)   |
+| `.claude/skills/`     | Skills — slash commands + on-demand knowledge, one dir each  |
 | `.claude/hooks/`      | Lifecycle automation                                         |
-| `.claude/commands/`   | Custom slash commands                                        |

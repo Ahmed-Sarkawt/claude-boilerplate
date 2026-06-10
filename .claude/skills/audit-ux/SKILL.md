@@ -1,5 +1,7 @@
 ---
+name: audit-ux
 description: Run a UX audit on a component, page, or flow. Checks against 10 Laws of UX and WCAG AA accessibility. Returns severity-tagged findings with specific fixes.
+disable-model-invocation: true
 ---
 
 Invoke the `ux-auditor` agent.

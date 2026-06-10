@@ -1,4 +1,5 @@
 ---
+name: research
 description: Research a technical question by searching the web and reading documentation. Use when you or the user don't know the answer, an API is unfamiliar, an error is unexplained, or you need to verify a best practice against current sources.
 ---
 
