@@ -19,7 +19,7 @@ case "$SUBAGENT_NAME" in
   bug-fixer)
     echo "✅ Bug-fixer done. Run: npm run lint && npm run typecheck"
     # Prompt decision recording if there were skipped fixes or significant changes
-    if [[ -f "docs/decisions" ]] || [[ -d "docs/decisions" ]]; then
+    if [[ -d "docs/decisions" ]]; then
       echo "📝 If any architectural decisions were made during this review, record them: bash .claude/scripts/new-decision.sh <slug> \"<title>\""
     fi
     ;;
